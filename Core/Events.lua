@@ -435,6 +435,12 @@ function JFCT.Events.OnPlateAdded(unitToken)
 end
 
 function JFCT.Events.OnPlateRemoved(unitToken)
+    -- Clean up Display tracking for this plate
+    local pOk, plate = pcall(C_NamePlate.GetNamePlateForUnit, unitToken)
+    if pOk and plate then
+        JFCT.Display.OnPlateRemoved(plate)
+    end
+
     local f = plateFrames[unitToken]
     if f then
         RecyclePlateEventFrame(f)

@@ -8,8 +8,8 @@ local DEFAULT_FONT = "Fonts\\FRIZQT__.TTF"
 local DEFAULT_SIZE = 22
 
 local pool
-local activeCritFrame = nil    -- only one crit visible at a time
-local activeNormalFrame = nil  -- only one normal hit visible at a time
+local activeCritFrames   = {}  -- keyed by plate (or "screen"), one crit per anchor
+local activeNormalFrames = {}  -- keyed by plate (or "screen"), one normal per anchor
 
 -- Reset a pooled frame to a clean state
 local function ResetFrame(_, frame)
@@ -28,12 +28,16 @@ local function ResetFrame(_, frame)
     end
     frame:SetScale(1)
     frame:SetAlpha(1)
-    -- Clear crit tracking if this was the active crit
-    if activeCritFrame == frame then
-        activeCritFrame = nil
-    end
-    if activeNormalFrame == frame then
-        activeNormalFrame = nil
+    -- Clear per-plate tracking if this frame was active
+    local key = frame._plateKey
+    if key then
+        if activeCritFrames[key] == frame then
+            activeCritFrames[key] = nil
+        end
+        if activeNormalFrames[key] == frame then
+            activeNormalFrames[key] = nil
+        end
+        frame._plateKey = nil
     end
 end
 
@@ -112,17 +116,23 @@ function JFCT.Display.ShowHit(hitData)
     local typeScale    = JFCT.db[typeScaleKey] or 1.0
     local fontSize     = baseSize * spellScale * typeScale
 
-    -- Crits replace the previous crit; normal hits replace the previous normal hit
-    if isCrit and activeCritFrame then
-        pool:Release(activeCritFrame)
-        activeCritFrame = nil
-    elseif not isCrit and eventType == "normal" and activeNormalFrame then
-        pool:Release(activeNormalFrame)
-        activeNormalFrame = nil
+    -- Per-plate key: use the plate reference for nameplate-anchored hits,
+    -- or the string "screen" for screen-centered hits
+    local plate = hitData.plate
+    local plateKey = plate or "screen"
+
+    -- Crits replace the previous crit on the SAME plate only
+    if isCrit and activeCritFrames[plateKey] then
+        pool:Release(activeCritFrames[plateKey])
+        activeCritFrames[plateKey] = nil
+    elseif not isCrit and eventType == "normal" and activeNormalFrames[plateKey] then
+        pool:Release(activeNormalFrames[plateKey])
+        activeNormalFrames[plateKey] = nil
     end
 
     -- Acquire and configure frame
     local frame = pool:Acquire()
+    frame._plateKey = plateKey
     frame:SetSize(220, 70)
     frame:SetFrameStrata("HIGH")
     frame:SetFrameLevel(100)
@@ -178,11 +188,11 @@ function JFCT.Display.ShowHit(hitData)
 
     frame:Show()
 
-    -- Track active crit / normal frame
+    -- Track active crit / normal frame per plate
     if isCrit then
-        activeCritFrame = frame
+        activeCritFrames[plateKey] = frame
     elseif eventType == "normal" then
-        activeNormalFrame = frame
+        activeNormalFrames[plateKey] = frame
     end
 
     -- Check personal best on crits
@@ -203,6 +213,14 @@ function JFCT.Display.ShowHit(hitData)
         JFCT.Animations.PlayClassic(frame, isCrit, pool)
     else
         JFCT.Animations.PlayModern(frame, isCrit, pool)
+    end
+end
+
+-- Clean up tracking when a nameplate is removed
+function JFCT.Display.OnPlateRemoved(plate)
+    if plate then
+        activeCritFrames[plate] = nil
+        activeNormalFrames[plate] = nil
     end
 end
 
