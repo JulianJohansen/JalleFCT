@@ -1,7 +1,7 @@
 -- Core/Config.lua
 -- SavedVariables management and defaults
 
-local MCT = MidnightCombatText
+local JFCT = JalleFCT
 
 local DEFAULTS = {
     enabled          = true,
@@ -39,57 +39,57 @@ local function MergeDefaults(dst, src)
     end
 end
 
-function MCT.Config.Init()
-    if not MCT_Config then
-        MCT_Config = {}
+function JFCT.Config.Init()
+    if not JalleFCT_Config then
+        JalleFCT_Config = {}
     end
-    MergeDefaults(MCT_Config, DEFAULTS)
-    MCT.db = MCT_Config
+    MergeDefaults(JalleFCT_Config, DEFAULTS)
+    JFCT.db = JalleFCT_Config
 end
 
-function MCT.Config.Set(key, value)
-    MCT.db[key] = value
+function JFCT.Config.Set(key, value)
+    JFCT.db[key] = value
 end
 
-function MCT.Config.Get(key)
-    return MCT.db[key]
+function JFCT.Config.Get(key)
+    return JFCT.db[key]
 end
 
 -- Spell filter: nil treated as true (show by default)
-function MCT.Config.GetSpellFilter(spellId)
-    local v = MCT.db.spellFilters[spellId]
+function JFCT.Config.GetSpellFilter(spellId)
+    local v = JFCT.db.spellFilters[spellId]
     return v == nil or v == true
 end
 
-function MCT.Config.SetSpellFilter(spellId, shown)
-    MCT.db.spellFilters[spellId] = shown
+function JFCT.Config.SetSpellFilter(spellId, shown)
+    JFCT.db.spellFilters[spellId] = shown
 end
 
-function MCT.Config.GetSpellSize(spellId)
-    return MCT.db.spellSizes[spellId] or 1.0
+function JFCT.Config.GetSpellSize(spellId)
+    return JFCT.db.spellSizes[spellId] or 1.0
 end
 
-function MCT.Config.SetSpellSize(spellId, scale)
-    MCT.db.spellSizes[spellId] = scale
+function JFCT.Config.SetSpellSize(spellId, scale)
+    JFCT.db.spellSizes[spellId] = scale
 end
 
 -- Per-spell merge: nil treated as true (merge by default when global merge is on)
-function MCT.Config.GetSpellMerge(spellId)
-    local v = MCT.db.spellMerge[spellId]
+function JFCT.Config.GetSpellMerge(spellId)
+    local v = JFCT.db.spellMerge[spellId]
     return v == nil or v == true
 end
 
-function MCT.Config.SetSpellMerge(spellId, merge)
-    MCT.db.spellMerge[spellId] = merge
+function JFCT.Config.SetSpellMerge(spellId, merge)
+    JFCT.db.spellMerge[spellId] = merge
 end
 
 -- Called when a spell is seen in combat or preloaded from ClassData
-function MCT.Config.RegisterSpell(spellId, spellName)
-    if not MCT.db.knownSpells[spellId] then
-        MCT.db.knownSpells[spellId] = spellName
+function JFCT.Config.RegisterSpell(spellId, spellName)
+    if not JFCT.db.knownSpells[spellId] then
+        JFCT.db.knownSpells[spellId] = spellName
         -- Notify spell list UI to refresh if it's open
-        if MCT.UI.RefreshSpellList then
-            MCT.UI.RefreshSpellList()
+        if JFCT.UI.RefreshSpellList then
+            JFCT.UI.RefreshSpellList()
         end
     end
 end

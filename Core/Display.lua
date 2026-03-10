@@ -1,7 +1,7 @@
 -- Core/Display.lua
 -- Frame pool management and hit display entry point
 
-local MCT = MidnightCombatText
+local JFCT = JalleFCT
 
 local BASE_FONT = "Fonts\\FRIZQT__.TTF"
 local BASE_SIZE = 22
@@ -23,7 +23,7 @@ end
 
 local pool
 
-function MCT.Display.Init()
+function JFCT.Display.Init()
     pool = CreateFramePool("Frame", UIParent, nil, ResetFrame)
 end
 
@@ -32,7 +32,7 @@ end
 -- ---------------------------------------------------------------------------
 
 local function GetColor(eventType)
-    local c = MCT.db.colors
+    local c = JFCT.db.colors
     if     eventType == "crit" then return c.crit.r,   c.crit.g,   c.crit.b
     elseif eventType == "dot"  then return c.dot.r,    c.dot.g,    c.dot.b
     elseif eventType == "hot"  then return c.hot.r,    c.hot.g,    c.hot.b
@@ -47,14 +47,14 @@ end
 -- ---------------------------------------------------------------------------
 
 local function GetAnchor()
-    if MCT.db.anchorMode == "nameplate" then
-        local plate = MCT.Events.GetTargetNameplate()
+    if JFCT.db.anchorMode == "nameplate" then
+        local plate = JFCT.Events.GetTargetNameplate()
         if plate then
-            return plate, "BOTTOM", MCT.db.nameplateOffsetX, MCT.db.nameplateOffsetY
+            return plate, "BOTTOM", JFCT.db.nameplateOffsetX, JFCT.db.nameplateOffsetY
         end
     end
     -- Screen anchor (or nameplate fallback)
-    return UIParent, "CENTER", MCT.db.anchorX, MCT.db.anchorY
+    return UIParent, "CENTER", JFCT.db.anchorX, JFCT.db.anchorY
 end
 
 -- ---------------------------------------------------------------------------
@@ -87,8 +87,8 @@ end
 -- }
 -- ---------------------------------------------------------------------------
 
-function MCT.Display.ShowHit(hitData)
-    if not MCT.db.enabled then return end
+function JFCT.Display.ShowHit(hitData)
+    if not JFCT.db.enabled then return end
     if not pool then return end
 
     local spellId   = hitData.spellId
@@ -104,7 +104,7 @@ function MCT.Display.ShowHit(hitData)
     end
 
     -- Per-spell scale
-    local scale    = spellId and MCT.Config.GetSpellSize(spellId) or 1.0
+    local scale    = spellId and JFCT.Config.GetSpellSize(spellId) or 1.0
     local fontSize = BASE_SIZE * scale
     if isCrit then fontSize = fontSize * 1.25 end
 
@@ -133,16 +133,16 @@ function MCT.Display.ShowHit(hitData)
     frame:Show()
 
     -- Dispatch animation
-    if MCT.db.animStyle == "classic" then
-        MCT.Animations.PlayClassic(frame, isCrit, pool)
+    if JFCT.db.animStyle == "classic" then
+        JFCT.Animations.PlayClassic(frame, isCrit, pool)
     else
-        MCT.Animations.PlayModern(frame, isCrit, pool)
+        JFCT.Animations.PlayModern(frame, isCrit, pool)
     end
 end
 
 -- Exposed for TestMode
-function MCT.Display.ShowTestHit(amount, eventType, isCrit, spellId, spellName)
-    MCT.Display.ShowHit({
+function JFCT.Display.ShowTestHit(amount, eventType, isCrit, spellId, spellName)
+    JFCT.Display.ShowHit({
         amount    = amount,
         spellId   = spellId,
         spellName = spellName,

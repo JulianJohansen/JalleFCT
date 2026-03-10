@@ -1,7 +1,7 @@
--- MidnightCombatText.lua
+-- JalleFCT.lua
 -- Namespace definition and addon lifecycle
 
-MidnightCombatText = {
+JalleFCT = {
     CastTracker = {},
     Display     = {},
     Events      = {},
@@ -12,10 +12,10 @@ MidnightCombatText = {
     UI          = {},
 
     playerClass = nil,  -- e.g. "WARRIOR", set on PLAYER_LOGIN
-    db          = nil,  -- alias for MCT_Config, set on ADDON_LOADED
+    db          = nil,  -- alias for JalleFCT_Config, set on ADDON_LOADED
 }
 
-local MCT = MidnightCombatText
+local JFCT = JalleFCT
 
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("ADDON_LOADED")
@@ -25,27 +25,27 @@ initFrame:RegisterEvent("PLAYER_LOGOUT")
 initFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
         local addonName = ...
-        if addonName ~= "MidnightCombatText" then return end
-        MCT.Config.Init()
+        if addonName ~= "JalleFCT" then return end
+        JFCT.Config.Init()
 
     elseif event == "PLAYER_LOGIN" then
         local _, class = UnitClass("player")
-        MCT.playerClass = class
-        MCT.ClassData.PreloadClass(class)
-        MCT.Events.Init()
-        MCT.Display.Init()
-        MCT.UI.Init()
+        JFCT.playerClass = class
+        JFCT.ClassData.PreloadClass(class)
+        JFCT.Events.Init()
+        JFCT.Display.Init()
+        JFCT.UI.Init()
 
-        if MCT.db.enabled then
+        if JFCT.db.enabled then
             CombatTextSetActiveUnit("player")
         end
 
     elseif event == "PLAYER_LOGOUT" then
-        MCT.TestMode.Stop()
+        JFCT.TestMode.Stop()
     end
 end)
 
-SLASH_MCT1 = "/mct"
-SlashCmdList["MCT"] = function()
-    MCT.UI.Toggle()
+SLASH_JFCT1 = "/jfct"
+SlashCmdList["JFCT"] = function()
+    JFCT.UI.Toggle()
 end

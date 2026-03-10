@@ -1,7 +1,7 @@
 -- Core/Events.lua
 -- Event registration and routing to CastTracker / Display
 
-local MCT = MidnightCombatText
+local JFCT = JalleFCT
 
 local eventFrame = CreateFrame("Frame")
 
@@ -23,7 +23,7 @@ local DISPLAY_TYPES = {
     ABSORB              = "miss",
 }
 
-function MCT.Events.Init()
+function JFCT.Events.Init()
     -- Primary display source: secret-safe, works in all content
     eventFrame:RegisterEvent("COMBAT_TEXT_UPDATE")
 
@@ -42,17 +42,17 @@ function MCT.Events.Init()
     -- Stop test mode if the player enters real combat
     eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 
-    eventFrame:SetScript("OnEvent", MCT.Events.OnEvent)
+    eventFrame:SetScript("OnEvent", JFCT.Events.OnEvent)
 end
 
-function MCT.Events.OnEvent(self, event, ...)
-    if     event == "COMBAT_TEXT_UPDATE"           then MCT.Events.OnCombatText(...)
-    elseif event == "COMBAT_LOG_EVENT_UNFILTERED"  then MCT.Events.OnCLEU()
-    elseif event == "UNIT_SPELLCAST_START"         then MCT.Events.OnSpellcastStart(...)
-    elseif event == "UNIT_SPELLCAST_SUCCEEDED"     then MCT.Events.OnSpellcastSucceeded(...)
-    elseif event == "NAME_PLATE_UNIT_ADDED"        then MCT.Events.OnPlateAdded(...)
-    elseif event == "NAME_PLATE_UNIT_REMOVED"      then MCT.Events.OnPlateRemoved(...)
-    elseif event == "PLAYER_REGEN_DISABLED"        then MCT.TestMode.Stop()
+function JFCT.Events.OnEvent(self, event, ...)
+    if     event == "COMBAT_TEXT_UPDATE"           then JFCT.Events.OnCombatText(...)
+    elseif event == "COMBAT_LOG_EVENT_UNFILTERED"  then JFCT.Events.OnCLEU()
+    elseif event == "UNIT_SPELLCAST_START"         then JFCT.Events.OnSpellcastStart(...)
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED"     then JFCT.Events.OnSpellcastSucceeded(...)
+    elseif event == "NAME_PLATE_UNIT_ADDED"        then JFCT.Events.OnPlateAdded(...)
+    elseif event == "NAME_PLATE_UNIT_REMOVED"      then JFCT.Events.OnPlateRemoved(...)
+    elseif event == "PLAYER_REGEN_DISABLED"        then JFCT.TestMode.Stop()
     end
 end
 
@@ -60,8 +60,8 @@ end
 -- COMBAT_TEXT_UPDATE  (primary display path, secret-safe)
 -- ---------------------------------------------------------------------------
 
-function MCT.Events.OnCombatText(combatTextType)
-    if not MCT.db.enabled then return end
+function JFCT.Events.OnCombatText(combatTextType)
+    if not JFCT.db.enabled then return end
 
     local eventType = DISPLAY_TYPES[combatTextType]
     if not eventType then return end
@@ -71,14 +71,14 @@ function MCT.Events.OnCombatText(combatTextType)
 
     local isCrit = combatTextType:find("CRIT") ~= nil
 
-    MCT.CastTracker.OnCombatTextEvent(amount, eventType, isCrit)
+    JFCT.CastTracker.OnCombatTextEvent(amount, eventType, isCrit)
 end
 
 -- ---------------------------------------------------------------------------
 -- COMBAT_LOG_EVENT_UNFILTERED  (spell ID tracking + merge correlation)
 -- ---------------------------------------------------------------------------
 
-function MCT.Events.OnCLEU()
+function JFCT.Events.OnCLEU()
     local _, subevent, _,
           sourceGUID, _, _, _,
           _, _, _, _,
@@ -91,14 +91,14 @@ function MCT.Events.OnCLEU()
 
     if subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE" then
         if spellId and spellName then
-            MCT.Config.RegisterSpell(spellId, spellName)
-            MCT.CastTracker.OnCLEUDamage(sourceGUID, spellId, spellName,
+            JFCT.Config.RegisterSpell(spellId, spellName)
+            JFCT.CastTracker.OnCLEUDamage(sourceGUID, spellId, spellName,
                 subevent == "SPELL_PERIODIC_DAMAGE")
         end
 
     elseif subevent == "SWING_DAMAGE" then
-        MCT.Config.RegisterSpell(0, "Auto Attack")
-        MCT.CastTracker.OnCLEUDamage(sourceGUID, 0, "Auto Attack", false)
+        JFCT.Config.RegisterSpell(0, "Auto Attack")
+        JFCT.CastTracker.OnCLEUDamage(sourceGUID, 0, "Auto Attack", false)
     end
 end
 
@@ -110,19 +110,19 @@ end
 -- We cache it keyed by castGUID so we can retrieve it at SUCCEEDED
 local pendingCastBarIDs = {}  -- [castGUID] = castBarID
 
-function MCT.Events.OnSpellcastStart(unitToken, castGUID, spellId)
+function JFCT.Events.OnSpellcastStart(unitToken, castGUID, spellId)
     local _, _, _, _, _, _, _, _, _, castBarID = UnitCastingInfo(unitToken)
     if castBarID then
         pendingCastBarIDs[castGUID] = castBarID
     end
 end
 
-function MCT.Events.OnSpellcastSucceeded(unitToken, castGUID, spellId)
+function JFCT.Events.OnSpellcastSucceeded(unitToken, castGUID, spellId)
     local castBarID = pendingCastBarIDs[castGUID]
     pendingCastBarIDs[castGUID] = nil  -- consume
 
     local spellName = C_Spell.GetSpellName(spellId)
-    MCT.CastTracker.OnCastSucceeded(unitToken, spellId, spellName or "", castBarID)
+    JFCT.CastTracker.OnCastSucceeded(unitToken, spellId, spellName or "", castBarID)
 end
 
 -- ---------------------------------------------------------------------------
@@ -131,16 +131,16 @@ end
 
 local activePlates = {}  -- [unitToken] = nameplateFrame
 
-function MCT.Events.OnPlateAdded(unitToken)
+function JFCT.Events.OnPlateAdded(unitToken)
     activePlates[unitToken] = C_NamePlate.GetNamePlateForUnit(unitToken)
 end
 
-function MCT.Events.OnPlateRemoved(unitToken)
+function JFCT.Events.OnPlateRemoved(unitToken)
     activePlates[unitToken] = nil
 end
 
 -- Returns the nameplate frame for the current target, or nil
-function MCT.Events.GetTargetNameplate()
+function JFCT.Events.GetTargetNameplate()
     for unitToken, plate in pairs(activePlates) do
         if UnitIsUnit(unitToken, "target") and plate and plate:IsShown() then
             return plate

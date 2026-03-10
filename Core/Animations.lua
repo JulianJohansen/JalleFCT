@@ -1,7 +1,7 @@
 -- Core/Animations.lua
 -- Classic and Modern animation implementations
 
-local MCT = MidnightCombatText
+local JFCT = JalleFCT
 
 -- Alternates left/right for the classic fan effect
 local classicSide = 1
@@ -31,7 +31,7 @@ end
 --   - Total duration ~1.6s
 -- ---------------------------------------------------------------------------
 
-function MCT.Animations.PlayClassic(frame, isCrit, pool)
+function JFCT.Animations.PlayClassic(frame, isCrit, pool)
     local ag = NewAnimGroup(frame, pool)
 
     -- Alternate side, randomise magnitude slightly
@@ -85,7 +85,7 @@ end
 --   - Total duration ~1.4s
 -- ---------------------------------------------------------------------------
 
-function MCT.Animations.PlayModern(frame, isCrit, pool)
+function JFCT.Animations.PlayModern(frame, isCrit, pool)
     local ag = NewAnimGroup(frame, pool)
 
     local xDrift = (math.random(0, 1) == 0 and 1 or -1) * math.random(8, 28)

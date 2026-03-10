@@ -10,7 +10,7 @@
 --   COMBAT_TEXT_UPDATE consumes that context to correlate amount -> spell,
 --   then routes into the appropriate pending group.
 
-local MCT = MidnightCombatText
+local JFCT = JalleFCT
 
 local GROUP_WINDOW = 0.06  -- seconds to wait for additional hits after the last one
 
@@ -26,7 +26,7 @@ local lastCLEUCtx = nil
 -- Called by Events.lua: UNIT_SPELLCAST_SUCCEEDED
 -- ---------------------------------------------------------------------------
 
-function MCT.CastTracker.OnCastSucceeded(unitToken, spellId, spellName, castBarID)
+function JFCT.CastTracker.OnCastSucceeded(unitToken, spellId, spellName, castBarID)
     if not spellId then return end
 
     -- Prefer castBarID; fall back to a GUID+spellId string key
@@ -56,7 +56,7 @@ end
 -- Called by Events.lua: CLEU SPELL_DAMAGE / SWING_DAMAGE
 -- ---------------------------------------------------------------------------
 
-function MCT.CastTracker.OnCLEUDamage(sourceGUID, spellId, spellName, isPeriodic)
+function JFCT.CastTracker.OnCLEUDamage(sourceGUID, spellId, spellName, isPeriodic)
     -- Find the matching pending group to store its key
     local groupKey = nil
 
@@ -88,8 +88,8 @@ end
 
 local CLEU_CORRELATE_WINDOW = 0.05  -- 50ms tolerance for CLEU/CTU ordering
 
-function MCT.CastTracker.OnCombatTextEvent(amount, eventType, isCrit)
-    if not MCT.db.enabled then return end
+function JFCT.CastTracker.OnCombatTextEvent(amount, eventType, isCrit)
+    if not JFCT.db.enabled then return end
 
     -- Consume the CLEU context if it's fresh enough
     local spellId, spellName, groupKey
@@ -102,14 +102,14 @@ function MCT.CastTracker.OnCombatTextEvent(amount, eventType, isCrit)
     end
 
     -- Check per-spell filter
-    if spellId and not MCT.Config.GetSpellFilter(spellId) then
+    if spellId and not JFCT.Config.GetSpellFilter(spellId) then
         return
     end
 
     -- If merging is off globally, or disabled for this spell, or we have no group key, show immediately
-    local spellMergeOn = not spellId or MCT.Config.GetSpellMerge(spellId)
-    if not MCT.db.mergeHits or not spellMergeOn or not groupKey then
-        MCT.Display.ShowHit({
+    local spellMergeOn = not spellId or JFCT.Config.GetSpellMerge(spellId)
+    if not JFCT.db.mergeHits or not spellMergeOn or not groupKey then
+        JFCT.Display.ShowHit({
             amount    = amount,
             spellId   = spellId,
             spellName = spellName,
@@ -123,7 +123,7 @@ function MCT.CastTracker.OnCombatTextEvent(amount, eventType, isCrit)
 
     -- No pending group means this is a standalone hit
     if not group then
-        MCT.Display.ShowHit({
+        JFCT.Display.ShowHit({
             amount    = amount,
             spellId   = spellId,
             spellName = spellName,
@@ -150,7 +150,7 @@ function MCT.CastTracker.OnCombatTextEvent(amount, eventType, isCrit)
         local g = pendingGroups[capturedKey]
         if not g then return end
 
-        MCT.Display.ShowHit({
+        JFCT.Display.ShowHit({
             amount    = g.hits,   -- table; Display handles summing or secret passthrough
             spellId   = g.spellId,
             spellName = g.spellName,

@@ -1,4 +1,4 @@
--- .luacheckrc for MidnightCombatText
+-- .luacheckrc for JalleFCT
 -- WoW Lua is Lua 5.1 compatible (strict subset)
 
 std = "lua51"
@@ -7,9 +7,9 @@ codes = true
 
 -- Our addon globals (mutable)
 globals = {
-    "MidnightCombatText",
-    "MCT_Config",
-    "SLASH_MCT1",
+    "JalleFCT",
+    "JalleFCT_Config",
+    "SLASH_JFCT1",
     "SlashCmdList",   -- WoW global table; we set keys into it
 }
 

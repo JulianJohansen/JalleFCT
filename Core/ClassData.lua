@@ -1,9 +1,9 @@
 -- Core/ClassData.lua
 -- Default spell lists per class, preloaded on PLAYER_LOGIN
 
-local MCT = MidnightCombatText
+local JFCT = JalleFCT
 
-MCT.ClassData = {
+JFCT.ClassData = {
     WARRIOR = {
         { id = 163201, name = "Execute" },
         { id = 23881,  name = "Bloodthirst" },
@@ -153,10 +153,10 @@ MCT.ClassData = {
     },
 }
 
-function MCT.ClassData.PreloadClass(class)
-    local spells = MCT.ClassData[class]
+function JFCT.ClassData.PreloadClass(class)
+    local spells = JFCT.ClassData[class]
     if not spells then return end
     for _, spell in ipairs(spells) do
-        MCT.Config.RegisterSpell(spell.id, spell.name)
+        JFCT.Config.RegisterSpell(spell.id, spell.name)
     end
 end

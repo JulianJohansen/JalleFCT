@@ -1,13 +1,13 @@
 -- Core/UI/Panel.lua
 -- Main options window: framework, shared helpers, General tab, Colors tab
 
-local MCT = MidnightCombatText
+local JFCT = JalleFCT
 
 -- ---------------------------------------------------------------------------
 -- Color palette
 -- ---------------------------------------------------------------------------
 
-MCT.UI.Colors = {
+JFCT.UI.Colors = {
     bg      = { 0.14, 0.14, 0.14, 0.97 },
     bgDeep  = { 0.10, 0.10, 0.10, 1.00 },
     bgRow   = { 0.12, 0.12, 0.12, 1.00 },
@@ -17,7 +17,7 @@ MCT.UI.Colors = {
     accent  = { 0.80, 0.70, 0.30, 1.00 },
 }
 
-local C = MCT.UI.Colors  -- shorthand
+local C = JFCT.UI.Colors  -- shorthand
 
 -- ---------------------------------------------------------------------------
 -- Shared widget helpers
@@ -34,7 +34,7 @@ local function SetBackdropDark(frame)
 end
 
 -- Flat button with hover highlight
-function MCT.UI.CreateButton(parent, label, w, h)
+function JFCT.UI.CreateButton(parent, label, w, h)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetSize(w or 100, h or 24)
     btn:SetBackdrop({
@@ -78,7 +78,7 @@ function MCT.UI.CreateButton(parent, label, w, h)
 end
 
 -- Checkbox toggle
-function MCT.UI.CreateToggle(parent, label, initialValue, onChange)
+function JFCT.UI.CreateToggle(parent, label, initialValue, onChange)
     local container = CreateFrame("Frame", nil, parent)
     container:SetSize(260, 20)
 
@@ -135,7 +135,7 @@ function MCT.UI.CreateToggle(parent, label, initialValue, onChange)
 end
 
 -- Labelled slider
-function MCT.UI.CreateSlider(parent, label, minVal, maxVal, step, init, onChange)
+function JFCT.UI.CreateSlider(parent, label, minVal, maxVal, step, init, onChange)
     local container = CreateFrame("Frame", nil, parent)
     container:SetSize(220, 42)
 
@@ -189,7 +189,7 @@ end
 local mainPanel
 
 local function BuildMainPanel()
-    mainPanel = CreateFrame("Frame", "MCT_Panel", UIParent, "BackdropTemplate")
+    mainPanel = CreateFrame("Frame", "JFCT_Panel", UIParent, "BackdropTemplate")
     mainPanel:SetSize(500, 540)
     mainPanel:SetPoint("CENTER")
     mainPanel:SetFrameStrata("DIALOG")
@@ -218,10 +218,10 @@ local function BuildMainPanel()
     local title = titleBar:CreateFontString(nil, "OVERLAY")
     title:SetFont("Fonts\\FRIZQT__.TTF", 13, "NONE")
     title:SetTextColor(C.text[1], C.text[2], C.text[3])
-    title:SetText("Midnight Combat Text")
+    title:SetText("JalleFCT")
     title:SetPoint("LEFT", 14, 0)
 
-    local closeBtn = MCT.UI.CreateButton(mainPanel, "x", 26, 26)
+    local closeBtn = JFCT.UI.CreateButton(mainPanel, "x", 26, 26)
     closeBtn:SetPoint("TOPRIGHT", -4, -4)
     closeBtn:SetScript("OnClick", function() mainPanel:Hide() end)
 
@@ -263,7 +263,7 @@ local function BuildMainPanel()
     end
 
     for i, name in ipairs(TAB_NAMES) do
-        local tab = MCT.UI.CreateButton(tabBarBg, name, TAB_W, 30)
+        local tab = JFCT.UI.CreateButton(tabBarBg, name, TAB_W, 30)
         tab:SetPoint("TOPLEFT", (i - 1) * TAB_W, 0)
         -- Underline accent
         local uline = tab:CreateTexture(nil, "OVERLAY")
@@ -301,7 +301,7 @@ local function BuildMainPanel()
     bottomBar:SetBackdropColor(C.bgDeep[1], C.bgDeep[2], C.bgDeep[3], 1)
     bottomBar:SetBackdropBorderColor(C.border[1], C.border[2], C.border[3])
 
-    local testBtn = MCT.UI.CreateButton(bottomBar, "Test Mode: OFF", 150, 28)
+    local testBtn = JFCT.UI.CreateButton(bottomBar, "Test Mode: OFF", 150, 28)
     testBtn:SetPoint("RIGHT", -10, 0)
 
     local testActive = false
@@ -310,15 +310,15 @@ local function BuildMainPanel()
         testBtn.label:SetText(testActive and "Test Mode: ON" or "Test Mode: OFF")
         testBtn:SetActive(testActive)
         if testActive then
-            MCT.TestMode.Start()
+            JFCT.TestMode.Start()
         else
-            MCT.TestMode.Stop()
+            JFCT.TestMode.Stop()
         end
     end)
 
     -- Stop test mode indicator when TestMode.Stop is called externally
-    local origStop = MCT.TestMode.Stop
-    MCT.TestMode.Stop = function()
+    local origStop = JFCT.TestMode.Stop
+    JFCT.TestMode.Stop = function()
         origStop()
         testActive = false
         testBtn.label:SetText("Test Mode: OFF")
@@ -326,9 +326,9 @@ local function BuildMainPanel()
     end
 
     -- Build tab contents
-    MCT.UI.BuildGeneralTab(tabContents[1])
-    MCT.UI.BuildSpellsTab(tabContents[2])
-    MCT.UI.BuildColorsTab(tabContents[3])
+    JFCT.UI.BuildGeneralTab(tabContents[1])
+    JFCT.UI.BuildSpellsTab(tabContents[2])
+    JFCT.UI.BuildColorsTab(tabContents[3])
 
     SelectTab(1)
     mainPanel.SelectTab = SelectTab
@@ -336,11 +336,11 @@ local function BuildMainPanel()
     return mainPanel
 end
 
-function MCT.UI.Init()
+function JFCT.UI.Init()
     BuildMainPanel()
 end
 
-function MCT.UI.Toggle()
+function JFCT.UI.Toggle()
     if mainPanel then
         mainPanel:SetShown(not mainPanel:IsShown())
     end
@@ -350,19 +350,19 @@ end
 -- General tab
 -- ---------------------------------------------------------------------------
 
-function MCT.UI.BuildGeneralTab(parent)
+function JFCT.UI.BuildGeneralTab(parent)
     local PAD = 22
     local y   = -16
 
     -- Enable
-    local enableToggle = MCT.UI.CreateToggle(parent, "Enable Midnight Combat Text",
-        MCT.db.enabled, function(v) MCT.Config.Set("enabled", v) end)
+    local enableToggle = JFCT.UI.CreateToggle(parent, "Enable JalleFCT",
+        JFCT.db.enabled, function(v) JFCT.Config.Set("enabled", v) end)
     enableToggle:SetPoint("TOPLEFT", PAD, y)
     y = y - 30
 
     -- Merge hits
-    local mergeToggle = MCT.UI.CreateToggle(parent, "Merge multi-hit spells (e.g. Execute)",
-        MCT.db.mergeHits, function(v) MCT.Config.Set("mergeHits", v) end)
+    local mergeToggle = JFCT.UI.CreateToggle(parent, "Merge multi-hit spells (e.g. Execute)",
+        JFCT.db.mergeHits, function(v) JFCT.Config.Set("mergeHits", v) end)
     mergeToggle:SetPoint("TOPLEFT", PAD, y)
     y = y - 36
 
@@ -382,18 +382,18 @@ function MCT.UI.BuildGeneralTab(parent)
     animLbl:SetPoint("TOPLEFT", PAD, y)
     y = y - 22
 
-    local classicBtn = MCT.UI.CreateButton(parent, "Classic", 94, 26)
+    local classicBtn = JFCT.UI.CreateButton(parent, "Classic", 94, 26)
     classicBtn:SetPoint("TOPLEFT", PAD, y)
 
-    local modernBtn = MCT.UI.CreateButton(parent, "Modern", 94, 26)
+    local modernBtn = JFCT.UI.CreateButton(parent, "Modern", 94, 26)
     modernBtn:SetPoint("TOPLEFT", PAD + 102, y)
 
     local function RefreshAnimBtns()
-        classicBtn:SetActive(MCT.db.animStyle == "classic")
-        modernBtn:SetActive(MCT.db.animStyle == "modern")
+        classicBtn:SetActive(JFCT.db.animStyle == "classic")
+        modernBtn:SetActive(JFCT.db.animStyle == "modern")
     end
-    classicBtn:SetScript("OnClick", function() MCT.Config.Set("animStyle", "classic"); RefreshAnimBtns() end)
-    modernBtn:SetScript("OnClick",  function() MCT.Config.Set("animStyle", "modern");  RefreshAnimBtns() end)
+    classicBtn:SetScript("OnClick", function() JFCT.Config.Set("animStyle", "classic"); RefreshAnimBtns() end)
+    modernBtn:SetScript("OnClick",  function() JFCT.Config.Set("animStyle", "modern");  RefreshAnimBtns() end)
     RefreshAnimBtns()
     y = y - 42
 
@@ -413,10 +413,10 @@ function MCT.UI.BuildGeneralTab(parent)
     anchorLbl:SetPoint("TOPLEFT", PAD, y)
     y = y - 22
 
-    local screenBtn = MCT.UI.CreateButton(parent, "Screen",    94, 26)
+    local screenBtn = JFCT.UI.CreateButton(parent, "Screen",    94, 26)
     screenBtn:SetPoint("TOPLEFT", PAD, y)
 
-    local plateBtn = MCT.UI.CreateButton(parent, "Nameplate", 94, 26)
+    local plateBtn = JFCT.UI.CreateButton(parent, "Nameplate", 94, 26)
     plateBtn:SetPoint("TOPLEFT", PAD + 102, y)
     y = y - 34
 
@@ -425,12 +425,12 @@ function MCT.UI.BuildGeneralTab(parent)
     screenSliders:SetPoint("TOPLEFT", PAD, y)
     screenSliders:SetSize(300, 90)
 
-    local sX = MCT.UI.CreateSlider(screenSliders, "X Offset", -800, 800, 1,
-        MCT.db.anchorX, function(v) MCT.Config.Set("anchorX", v) end)
+    local sX = JFCT.UI.CreateSlider(screenSliders, "X Offset", -800, 800, 1,
+        JFCT.db.anchorX, function(v) JFCT.Config.Set("anchorX", v) end)
     sX:SetPoint("TOPLEFT", 0, 0)
 
-    local sY = MCT.UI.CreateSlider(screenSliders, "Y Offset", -600, 600, 1,
-        MCT.db.anchorY, function(v) MCT.Config.Set("anchorY", v) end)
+    local sY = JFCT.UI.CreateSlider(screenSliders, "Y Offset", -600, 600, 1,
+        JFCT.db.anchorY, function(v) JFCT.Config.Set("anchorY", v) end)
     sY:SetPoint("TOPLEFT", 0, -46)
 
     -- Nameplate offset sliders
@@ -438,24 +438,24 @@ function MCT.UI.BuildGeneralTab(parent)
     plateSliders:SetPoint("TOPLEFT", PAD, y)
     plateSliders:SetSize(300, 90)
 
-    local pX = MCT.UI.CreateSlider(plateSliders, "X Offset", -200, 200, 1,
-        MCT.db.nameplateOffsetX, function(v) MCT.Config.Set("nameplateOffsetX", v) end)
+    local pX = JFCT.UI.CreateSlider(plateSliders, "X Offset", -200, 200, 1,
+        JFCT.db.nameplateOffsetX, function(v) JFCT.Config.Set("nameplateOffsetX", v) end)
     pX:SetPoint("TOPLEFT", 0, 0)
 
-    local pY = MCT.UI.CreateSlider(plateSliders, "Y Offset", -50, 200, 1,
-        MCT.db.nameplateOffsetY, function(v) MCT.Config.Set("nameplateOffsetY", v) end)
+    local pY = JFCT.UI.CreateSlider(plateSliders, "Y Offset", -50, 200, 1,
+        JFCT.db.nameplateOffsetY, function(v) JFCT.Config.Set("nameplateOffsetY", v) end)
     pY:SetPoint("TOPLEFT", 0, -46)
 
     local function RefreshAnchorBtns()
-        local isScreen = MCT.db.anchorMode == "screen"
+        local isScreen = JFCT.db.anchorMode == "screen"
         screenBtn:SetActive(isScreen)
         plateBtn:SetActive(not isScreen)
         screenSliders:SetShown(isScreen)
         plateSliders:SetShown(not isScreen)
     end
 
-    screenBtn:SetScript("OnClick", function() MCT.Config.Set("anchorMode", "screen");    RefreshAnchorBtns() end)
-    plateBtn:SetScript("OnClick",  function() MCT.Config.Set("anchorMode", "nameplate"); RefreshAnchorBtns() end)
+    screenBtn:SetScript("OnClick", function() JFCT.Config.Set("anchorMode", "screen");    RefreshAnchorBtns() end)
+    plateBtn:SetScript("OnClick",  function() JFCT.Config.Set("anchorMode", "nameplate"); RefreshAnchorBtns() end)
     RefreshAnchorBtns()
 end
 
@@ -463,7 +463,7 @@ end
 -- Colors tab
 -- ---------------------------------------------------------------------------
 
-function MCT.UI.BuildColorsTab(parent)
+function JFCT.UI.BuildColorsTab(parent)
     local PAD = 22
     local y   = -16
 
@@ -495,7 +495,7 @@ function MCT.UI.BuildColorsTab(parent)
             edgeFile = "Interface\\Buttons\\WHITE8X8",
             edgeSize = 1,
         })
-        local col = MCT.db.colors[key]
+        local col = JFCT.db.colors[key]
         swatch:SetBackdropColor(col.r, col.g, col.b, 1)
         swatch:SetBackdropBorderColor(C.border[1], C.border[2], C.border[3])
 
@@ -506,7 +506,7 @@ function MCT.UI.BuildColorsTab(parent)
         label:SetPoint("LEFT", swatch, "RIGHT", 10, 0)
 
         swatch:SetScript("OnClick", function()
-            local current = MCT.db.colors[key]
+            local current = JFCT.db.colors[key]
             ColorPickerFrame:SetupColorPickerAndShow({
                 r           = current.r,
                 g           = current.g,
@@ -514,11 +514,11 @@ function MCT.UI.BuildColorsTab(parent)
                 hasOpacity  = false,
                 swatchFunc  = function()
                     local r, g, b = ColorPickerFrame:GetColorRGB()
-                    MCT.db.colors[key] = { r = r, g = g, b = b }
+                    JFCT.db.colors[key] = { r = r, g = g, b = b }
                     swatch:SetBackdropColor(r, g, b, 1)
                 end,
                 cancelFunc  = function(prev)
-                    MCT.db.colors[key] = { r = prev.r, g = prev.g, b = prev.b }
+                    JFCT.db.colors[key] = { r = prev.r, g = prev.g, b = prev.b }
                     swatch:SetBackdropColor(prev.r, prev.g, prev.b, 1)
                 end,
             })

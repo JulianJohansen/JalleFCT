@@ -1,7 +1,7 @@
 -- Core/UI/TestMode.lua
 -- Periodic fake hit display for live preview while editing settings
 
-local MCT = MidnightCombatText
+local JFCT = JalleFCT
 
 local ticker   = nil
 local INTERVAL = 1.4  -- seconds between fake hits
@@ -22,14 +22,14 @@ local FALLBACK_SPELLS = {
 }
 
 local function GetSpellPool()
-    local class = MCT.playerClass
-    local pool  = class and MCT.ClassData[class]
+    local class = JFCT.playerClass
+    local pool  = class and JFCT.ClassData[class]
     if pool and #pool > 0 then return pool end
     return FALLBACK_SPELLS
 end
 
 local function FireFakeHit()
-    if not MCT.db.enabled then return end
+    if not JFCT.db.enabled then return end
 
     local spells    = GetSpellPool()
     local spell     = spells[math.random(1, #spells)]
@@ -43,16 +43,16 @@ local function FireFakeHit()
         base = math.floor(base * (1.8 + math.random() * 0.6))
     end
 
-    MCT.Display.ShowTestHit(base, eventType, isCrit, spell.id, spell.name)
+    JFCT.Display.ShowTestHit(base, eventType, isCrit, spell.id, spell.name)
 end
 
-function MCT.TestMode.Start()
+function JFCT.TestMode.Start()
     if ticker then return end          -- already running
     FireFakeHit()                      -- immediate first hit
     ticker = C_Timer.NewTicker(INTERVAL, FireFakeHit)
 end
 
-function MCT.TestMode.Stop()
+function JFCT.TestMode.Stop()
     if ticker then
         ticker:Cancel()
         ticker = nil

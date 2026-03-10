@@ -1,9 +1,9 @@
 -- Core/UI/SpellList.lua
 -- Spells tab: scrollable list with per-spell toggle and size slider
 
-local MCT = MidnightCombatText
+local JFCT = JalleFCT
 
-local C = MCT.UI.Colors  -- set by Panel.lua which loads first
+local C = JFCT.UI.Colors  -- set by Panel.lua which loads first
 
 local ROW_H = 38
 
@@ -21,7 +21,7 @@ local function BuildRows(scrollChild, existingRows)
     local rowN  = 0
     local totalH = 0
 
-    for spellId, spellName in pairs(MCT.db.knownSpells) do
+    for spellId, spellName in pairs(JFCT.db.knownSpells) do
         rowN = rowN + 1
 
         local row = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
@@ -85,16 +85,16 @@ local function BuildRows(scrollChild, existingRows)
 
         -- Show toggle
         MakeToggleBox(8,
-            function() return MCT.Config.GetSpellFilter(sid) end,
-            function(v) MCT.Config.SetSpellFilter(sid, v) end)
+            function() return JFCT.Config.GetSpellFilter(sid) end,
+            function(v) JFCT.Config.SetSpellFilter(sid, v) end)
 
         -- Merge toggle (only meaningful when global merge is on)
         local mergeBtn = MakeToggleBox(32,
-            function() return MCT.Config.GetSpellMerge(sid) end,
-            function(v) MCT.Config.SetSpellMerge(sid, v) end)
+            function() return JFCT.Config.GetSpellMerge(sid) end,
+            function(v) JFCT.Config.SetSpellMerge(sid, v) end)
 
         -- Dim merge toggle when global merge is off to signal it has no effect
-        if not MCT.db.mergeHits then
+        if not JFCT.db.mergeHits then
             mergeBtn:SetAlpha(0.35)
         end
 
@@ -109,7 +109,7 @@ local function BuildRows(scrollChild, existingRows)
         nameFs:SetWordWrap(false)
 
         -- Size label
-        local currentSize = MCT.Config.GetSpellSize(spellId)
+        local currentSize = JFCT.Config.GetSpellSize(spellId)
         local sizeLabel = row:CreateFontString(nil, "OVERLAY")
         sizeLabel:SetFont("Fonts\\FRIZQT__.TTF", 10, "NONE")
         sizeLabel:SetTextColor(C.textDim[1], C.textDim[2], C.textDim[3])
@@ -132,7 +132,7 @@ local function BuildRows(scrollChild, existingRows)
         end
 
         sizeSlider:SetScript("OnValueChanged", function(self, v)
-            MCT.Config.SetSpellSize(sid, v)
+            JFCT.Config.SetSpellSize(sid, v)
             sizeLabel:SetText(string.format("%.1fx", v))
         end)
 
@@ -144,7 +144,7 @@ local function BuildRows(scrollChild, existingRows)
     return rows
 end
 
-function MCT.UI.BuildSpellsTab(parent)
+function JFCT.UI.BuildSpellsTab(parent)
     -- Header note
     local header = parent:CreateFontString(nil, "OVERLAY")
     header:SetFont("Fonts\\FRIZQT__.TTF", 11, "NONE")
@@ -180,7 +180,7 @@ function MCT.UI.BuildSpellsTab(parent)
     colSize:SetPoint("TOPRIGHT", -10, -36)
 
     -- Scroll frame
-    local scrollFrame = CreateFrame("ScrollFrame", "MCT_SpellScroll", parent, "UIPanelScrollFrameTemplate")
+    local scrollFrame = CreateFrame("ScrollFrame", "JFCT_SpellScroll", parent, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT",     parent, "TOPLEFT",      20,  -52)
     scrollFrame:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -38,    6)
 
@@ -193,7 +193,7 @@ function MCT.UI.BuildSpellsTab(parent)
     local rows = BuildRows(scrollChild, nil)
 
     -- Expose refresh so Config.RegisterSpell can trigger a rebuild
-    function MCT.UI.RefreshSpellList()
+    function JFCT.UI.RefreshSpellList()
         rows = BuildRows(scrollChild, rows)
     end
 end
