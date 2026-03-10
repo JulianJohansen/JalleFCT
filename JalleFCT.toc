@@ -14,4 +14,5 @@ Core\Display.lua
 Core\Animations.lua
 Core\UI\Panel.lua
 Core\UI\SpellList.lua
+Core\UI\Profiles.lua
 Core\UI\TestMode.lua

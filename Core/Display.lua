@@ -60,12 +60,9 @@ end
 -- Anchor resolution
 -- ---------------------------------------------------------------------------
 
-local function GetAnchor()
-    if JFCT.db.anchorMode == "nameplate" then
-        local plate = JFCT.Events.GetTargetNameplate()
-        if plate then
-            return plate, "TOP", JFCT.db.nameplateOffsetX, JFCT.db.nameplateOffsetY
-        end
+local function GetAnchor(plate)
+    if JFCT.db.anchorMode == "nameplate" and plate and plate:IsShown() then
+        return plate, "TOP", JFCT.db.nameplateOffsetX or 0, JFCT.db.nameplateOffsetY or 0
     end
     -- Screen anchor (or nameplate fallback)
     return UIParent, "CENTER", JFCT.db.anchorX, JFCT.db.anchorY
@@ -130,7 +127,7 @@ function JFCT.Display.ShowHit(hitData)
     frame:SetFrameStrata("HIGH")
     frame:SetFrameLevel(100)
 
-    local anchor, point, ox, oy = GetAnchor()
+    local anchor, point, ox, oy = GetAnchor(hitData.plate)
 
     -- Small random spawn jitter so simultaneous hits don't start at the exact same pixel
     local jitterX = math.random(-10, 10)
@@ -188,7 +185,20 @@ function JFCT.Display.ShowHit(hitData)
         activeNormalFrame = frame
     end
 
+    -- Check personal best on crits
+    local isGlobalBest = false
+    if isCrit and spellId and JFCT.sv then
+        local _, gb = JFCT.Config.CheckPersonalBest(spellId, displayAmount)
+        isGlobalBest = gb
+    end
+
     -- Dispatch animation
+    if isGlobalBest then
+        JFCT.Animations.PlayGlobalBest(frame)
+    else
+        JFCT.Animations.ResetCritScale(frame)
+    end
+
     if JFCT.db.animStyle == "classic" then
         JFCT.Animations.PlayClassic(frame, isCrit, pool)
     else

@@ -26,7 +26,8 @@ JalleFCT = {
     UI          = {},
 
     playerClass = nil,  -- e.g. "WARRIOR", set on PLAYER_LOGIN
-    db          = nil,  -- alias for JalleFCT_Config, set on ADDON_LOADED
+    db          = nil,  -- alias for active profile, set on ADDON_LOADED
+    sv          = nil,  -- alias for root JalleFCT_Config, set on ADDON_LOADED
 }
 
 local JFCT = JalleFCT
@@ -74,4 +75,9 @@ SlashCmdList["JFCTTEST"] = function()
         eventType = "normal",
         isCrit    = false,
     })
+end
+
+SLASH_JFCTRESET1 = "/jfctreset"
+SlashCmdList["JFCTRESET"] = function()
+    JFCT.Config.ResetPersonalBests()
 end

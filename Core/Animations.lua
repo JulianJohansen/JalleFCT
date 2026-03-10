@@ -138,3 +138,113 @@ function JFCT.Animations.PlayModern(frame, isCrit, pool)
         frame.critGroup:Play()
     end
 end
+
+-- ---------------------------------------------------------------------------
+-- Global Best star burst effect
+-- Pre-pooled star frames that radiate outward from the hit position
+-- ---------------------------------------------------------------------------
+
+local STAR_COUNT = 8
+local STAR_ATLAS = "WhiteCircle-RaidBlips"  -- small built-in WoW texture
+local starPool = {}
+
+local function GetStarFrame()
+    local f = table.remove(starPool)
+    if not f then
+        f = CreateFrame("Frame", nil, UIParent)
+        f:SetSize(12, 12)
+        f:SetFrameStrata("HIGH")
+        f:SetFrameLevel(200)
+
+        local tex = f:CreateTexture(nil, "OVERLAY")
+        tex:SetAllPoints()
+        tex:SetAtlas(STAR_ATLAS)
+        tex:SetVertexColor(1.0, 0.85, 0.2, 1.0)  -- gold
+        f.tex = tex
+
+        -- Animation group: translate outward + scale up then down + fade
+        local ag = f:CreateAnimationGroup()
+        f.animGroup = ag
+
+        local move = ag:CreateAnimation("Translation")
+        move:SetSmoothing("OUT")
+        move:SetDuration(0.6)
+        move:SetOrder(1)
+        f.moveAnim = move
+
+        local grow = ag:CreateAnimation("Scale")
+        if grow.SetScaleFrom then
+            grow:SetScaleFrom(0.5, 0.5)
+            grow:SetScaleTo(1.5, 1.5)
+        elseif grow.SetFromScale then
+            grow:SetFromScale(0.5, 0.5)
+            grow:SetToScale(1.5, 1.5)
+        end
+        grow:SetDuration(0.3)
+        grow:SetOrder(1)
+        grow:SetSmoothing("OUT")
+
+        local fade = ag:CreateAnimation("Alpha")
+        fade:SetFromAlpha(1)
+        fade:SetToAlpha(0)
+        fade:SetDuration(0.3)
+        fade:SetStartDelay(0.3)
+        fade:SetOrder(1)
+        f.fadeAnim = fade
+
+        ag:SetScript("OnFinished", function()
+            f:Hide()
+            f:ClearAllPoints()
+            table.insert(starPool, f)
+        end)
+    end
+    return f
+end
+
+function JFCT.Animations.PlayGlobalBest(hitFrame)
+    -- Spawn stars radiating outward from the hit frame's position
+    local angleStep = (2 * math.pi) / STAR_COUNT
+    for i = 1, STAR_COUNT do
+        local star = GetStarFrame()
+        star:ClearAllPoints()
+        star:SetParent(UIParent)
+        star:SetPoint("CENTER", hitFrame, "CENTER", 0, 0)
+
+        -- Calculate outward direction
+        local angle = angleStep * (i - 1) + math.random() * 0.4 - 0.2  -- slight randomness
+        local dist = 50 + math.random(0, 30)
+        local dx = math.cos(angle) * dist
+        local dy = math.sin(angle) * dist
+
+        star.moveAnim:SetOffset(dx, dy)
+        star.tex:SetVertexColor(1.0, 0.85, 0.2, 1.0)
+        star:SetAlpha(1)
+        star:SetScale(1)
+        star:Show()
+        star.animGroup:Play()
+    end
+
+    -- Also make the crit scale bigger for global best (2.0x instead of 1.5x)
+    if hitFrame.critScaleAnim then
+        if hitFrame.critScaleAnim.SetScaleFrom then
+            hitFrame.critScaleAnim:SetScaleFrom(2.0, 2.0)
+            hitFrame.critScaleAnim:SetScaleTo(1.0, 1.0)
+        elseif hitFrame.critScaleAnim.SetFromScale then
+            hitFrame.critScaleAnim:SetFromScale(2.0, 2.0)
+            hitFrame.critScaleAnim:SetToScale(1.0, 1.0)
+        end
+    end
+end
+
+-- Restore normal crit scale after global best (called on next non-best crit)
+function JFCT.Animations.ResetCritScale(frame)
+    if frame.critScaleAnim then
+        if frame.critScaleAnim.SetScaleFrom then
+            frame.critScaleAnim:SetScaleFrom(1.5, 1.5)
+            frame.critScaleAnim:SetScaleTo(1.0, 1.0)
+        elseif frame.critScaleAnim.SetFromScale then
+            frame.critScaleAnim:SetFromScale(1.5, 1.5)
+            frame.critScaleAnim:SetToScale(1.0, 1.0)
+        end
+    end
+end

@@ -272,7 +272,7 @@ local function BuildMainPanel()
 
     -- Content area (below tab bar, above bottom bar)
     local tabContents = {}
-    local TAB_NAMES = { "General", "Font", "Spells", "Colors" }
+    local TAB_NAMES = { "General", "Font", "Spells", "Colors", "Profiles" }
 
     for i = 1, #TAB_NAMES do
         local content = CreateFrame("Frame", nil, mainPanel)
@@ -284,7 +284,7 @@ local function BuildMainPanel()
 
     -- Tab buttons
     local tabs = {}
-    local TAB_W = 80
+    local TAB_W = 90
 
     local function SelectTab(idx)
         for i, tab in ipairs(tabs) do
@@ -358,6 +358,7 @@ local function BuildMainPanel()
     JFCT.UI.BuildFontTab(tabContents[2])
     JFCT.UI.BuildSpellsTab(tabContents[3])
     JFCT.UI.BuildColorsTab(tabContents[4])
+    JFCT.UI.BuildProfilesTab(tabContents[5])
 
     SelectTab(1)
     mainPanel.SelectTab = SelectTab
@@ -372,6 +373,18 @@ end
 function JFCT.UI.Toggle()
     if mainPanel then
         mainPanel:SetShown(not mainPanel:IsShown())
+    end
+end
+
+-- Refresh: rebuild entire panel (called after profile switch)
+function JFCT.UI.Refresh()
+    if mainPanel then
+        local wasShown = mainPanel:IsShown()
+        mainPanel:Hide()
+        mainPanel:SetParent(nil)
+        mainPanel = nil
+        BuildMainPanel()
+        if wasShown then mainPanel:Show() end
     end
 end
 
@@ -420,6 +433,12 @@ function JFCT.UI.BuildGeneralTab(parent)
     local healToggle = JFCT.UI.CreateToggle(parent, "Show Heals",
         JFCT.db.showHeals, function(v) JFCT.Config.Set("showHeals", v) end)
     healToggle:SetPoint("TOPLEFT", PAD, y)
+    y = y - 28
+
+    -- Personal Best Flash
+    local pbToggle = JFCT.UI.CreateToggle(parent, "Personal Best Flash",
+        JFCT.db.personalBestFlash, function(v) JFCT.Config.Set("personalBestFlash", v) end)
+    pbToggle:SetPoint("TOPLEFT", PAD, y)
     y = y - 36
 
     -- Divider

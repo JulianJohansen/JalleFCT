@@ -2,6 +2,7 @@
 -- Event registration and routing to Display
 -- Primary source: UNIT_COMBAT (like MidnightBattleText)
 -- Secondary: CLEU for spellId/crit data enrichment
+-- Per-nameplate UNIT_COMBAT frames for multi-mob display
 
 local JFCT = JalleFCT
 
@@ -106,133 +107,179 @@ function JFCT.Events.ToggleDebug()
 end
 
 -- ---------------------------------------------------------------------------
--- UNIT_COMBAT handler (primary display source)
--- Args: unitTarget, action, flagText, amount, schoolMask
+-- Shared: route a UNIT_COMBAT event to ShowHit with an optional plate
+-- Args: plate (or nil), action, flagText, amount, schoolMask
 -- ---------------------------------------------------------------------------
 
-local function OnUnitCombat(unit, action, flagText, amount, schoolMask)
+local function HandleCombatHit(plate, action, flagText, amount, schoolMask)
     if not JFCT.db or not JFCT.db.enabled then return end
-
-    if debugMode then
-        print("|cff00ff00JFCT UC:|r unit=" .. tostring(unit) .. " action=" .. tostring(action)
-              .. " flag=" .. tostring(flagText) .. " amount=" .. tostring(amount))
-    end
 
     local isCrit = (flagText == "CRITICAL")
 
-    -- We only care about outgoing damage/heals on our target
-    if unit == "target" then
-        if action == "WOUND" then
-            if not JFCT.db.showOutgoingDamage and JFCT.db.showOutgoingDamage ~= nil then return end
+    if action == "WOUND" then
+        if not JFCT.db.showOutgoingDamage and JFCT.db.showOutgoingDamage ~= nil then return end
 
-            -- Check CLEU mark: only show if this was OUR damage
-            local marked, cleuSpellId, cleuCrit, cleuPeriodic = ConsumeCLEUMark(amount, "damage")
+        -- Check CLEU mark: only show if this was OUR damage
+        local marked, cleuSpellId, cleuCrit, cleuPeriodic = ConsumeCLEUMark(amount, "damage")
 
-            if marked then
-                -- CLEU confirmed this is our hit
-                local spellId = cleuSpellId
-                isCrit = cleuCrit or isCrit
+        if marked then
+            local spellId = cleuSpellId
+            isCrit = cleuCrit or isCrit
 
-                local eventType
-                if cleuPeriodic then
-                    eventType = "dot"
-                elseif isCrit then
-                    eventType = "crit"
-                else
-                    eventType = "normal"
-                end
+            local eventType
+            if cleuPeriodic then
+                eventType = "dot"
+            elseif isCrit then
+                eventType = "crit"
+            else
+                eventType = "normal"
+            end
 
-                -- Filtering
-                if eventType == "dot" and not JFCT.db.showDots then return end
-                if spellId and not JFCT.Config.GetSpellFilter(spellId) then return end
+            if eventType == "dot" and not JFCT.db.showDots then return end
+            if spellId and not JFCT.Config.GetSpellFilter(spellId) then return end
 
+            JFCT.Display.ShowHit({
+                amount    = amount,
+                spellId   = spellId,
+                eventType = eventType,
+                isCrit    = isCrit,
+                plate     = plate,
+            })
+        else
+            local spellId = GetLastPlayerSpellId()
+            local timeSinceCast = lastPlayerSpellTime > 0 and (GetTime() - lastPlayerSpellTime) or 999
+            local isDotLikely = (timeSinceCast > 0.4)
+
+            if isDotLikely then
+                if not JFCT.db.showDots then return end
+                JFCT.Display.ShowHit({
+                    amount    = amount,
+                    spellId   = spellId,
+                    eventType = "dot",
+                    isCrit    = isCrit,
+                    plate     = plate,
+                })
+            else
+                local eventType = isCrit and "crit" or "normal"
                 JFCT.Display.ShowHit({
                     amount    = amount,
                     spellId   = spellId,
                     eventType = eventType,
                     isCrit    = isCrit,
-
+                    plate     = plate,
                 })
-            else
-                -- CLEU unavailable or didn't mark this hit.
-                -- Use spell tracking to determine if this is our direct hit or a dot tick.
-                local spellId = GetLastPlayerSpellId()
-                local timeSinceCast = lastPlayerSpellTime > 0 and (GetTime() - lastPlayerSpellTime) or 999
-
-                -- If a spell was cast very recently (< 0.4s), this is likely a direct hit
-                -- If no recent cast, this is likely a dot tick or other player's damage
-                local isDotLikely = (timeSinceCast > 0.4)
-
-                if isDotLikely then
-                    -- Treat as a dot tick
-                    if not JFCT.db.showDots then return end
-                    JFCT.Display.ShowHit({
-                        amount    = amount,
-                        spellId   = spellId,
-                        eventType = "dot",
-                        isCrit    = isCrit,
-    
-                    })
-                else
-                    -- Direct hit
-                    local eventType = isCrit and "crit" or "normal"
-                    JFCT.Display.ShowHit({
-                        amount    = amount,
-                        spellId   = spellId,
-                        eventType = eventType,
-                        isCrit    = isCrit,
-    
-                    })
-                end
             end
+        end
 
-        elseif action == "HEAL" then
-            if not JFCT.db.showHeals then return end
+    elseif action == "HEAL" then
+        if not JFCT.db.showHeals then return end
 
-            local marked, cleuSpellId, cleuCrit, cleuPeriodic = ConsumeCLEUMark(amount, "heal")
-            if marked then
-                local eventType = cleuPeriodic and "hot" or "heal"
-                if eventType == "hot" and not JFCT.db.showHots then return end
+        local marked, cleuSpellId, cleuCrit, cleuPeriodic = ConsumeCLEUMark(amount, "heal")
+        if marked then
+            local eventType = cleuPeriodic and "hot" or "heal"
+            if eventType == "hot" and not JFCT.db.showHots then return end
 
+            JFCT.Display.ShowHit({
+                amount    = amount,
+                spellId   = cleuSpellId,
+                eventType = eventType,
+                isCrit    = cleuCrit or isCrit,
+                plate     = plate,
+            })
+        else
+            local spellId = GetLastPlayerSpellId()
+            local timeSinceCast = lastPlayerSpellTime > 0 and (GetTime() - lastPlayerSpellTime) or 999
+            local isHotLikely = (timeSinceCast > 0.4)
+
+            if isHotLikely then
+                if not JFCT.db.showHots then return end
                 JFCT.Display.ShowHit({
                     amount    = amount,
-                    spellId   = cleuSpellId,
-                    eventType = eventType,
-                    isCrit    = cleuCrit or isCrit,
-
+                    spellId   = spellId,
+                    eventType = "hot",
+                    isCrit    = isCrit,
+                    plate     = plate,
                 })
             else
-                local spellId = GetLastPlayerSpellId()
-                local timeSinceCast = lastPlayerSpellTime > 0 and (GetTime() - lastPlayerSpellTime) or 999
-                local isHotLikely = (timeSinceCast > 0.4)
-
-                if isHotLikely then
-                    if not JFCT.db.showHots then return end
-                    JFCT.Display.ShowHit({
-                        amount    = amount,
-                        spellId   = spellId,
-                        eventType = "hot",
-                        isCrit    = isCrit,
-    
-                    })
-                else
-                    JFCT.Display.ShowHit({
-                        amount    = amount,
-                        spellId   = spellId,
-                        eventType = "heal",
-                        isCrit    = isCrit,
-    
-                    })
-                end
+                JFCT.Display.ShowHit({
+                    amount    = amount,
+                    spellId   = spellId,
+                    eventType = "heal",
+                    isCrit    = isCrit,
+                    plate     = plate,
+                })
             end
-
-        elseif UC_MISS[action] then
-            JFCT.Display.ShowHit({
-                amount    = action,
-                eventType = "miss",
-                isCrit    = false,
-            })
         end
+
+    elseif UC_MISS[action] then
+        JFCT.Display.ShowHit({
+            amount    = action,
+            eventType = "miss",
+            isCrit    = false,
+            plate     = plate,
+        })
+    end
+end
+
+-- ---------------------------------------------------------------------------
+-- UNIT_COMBAT handler for main eventFrame (player + target)
+-- ---------------------------------------------------------------------------
+
+local function OnUnitCombat(unit, action, flagText, amount, schoolMask)
+    if debugMode then
+        print("|cff00ff00JFCT UC:|r unit=" .. tostring(unit) .. " action=" .. tostring(action)
+              .. " flag=" .. tostring(flagText) .. " amount=" .. tostring(amount))
+    end
+
+    if unit == "target" then
+        -- Get the target's nameplate (may be nil if nameplates are off)
+        local ok, plate = pcall(C_NamePlate.GetNamePlateForUnit, "target")
+        if not ok then plate = nil end
+        HandleCombatHit(plate, action, flagText, amount, schoolMask)
+    end
+end
+
+-- ---------------------------------------------------------------------------
+-- Per-nameplate UNIT_COMBAT system
+-- Each visible nameplate gets its own event frame that listens for
+-- UNIT_COMBAT on that specific unit token (e.g. "nameplate3").
+-- This lets us show damage on mobs that aren't our current target.
+-- ---------------------------------------------------------------------------
+
+local plateFrames = {}   -- [unitToken] = eventFrame
+local platePool = {}     -- recycled frames
+
+local function GetPlateEventFrame()
+    local f = table.remove(platePool)
+    if not f then
+        f = CreateFrame("Frame")
+    end
+    return f
+end
+
+local function RecyclePlateEventFrame(f)
+    f:UnregisterAllEvents()
+    f:SetScript("OnEvent", nil)
+    table.insert(platePool, f)
+end
+
+local function OnNameplateUnitCombat(unitToken, plate)
+    return function(self, event, unit, action, flagText, amount, schoolMask)
+        if event ~= "UNIT_COMBAT" then return end
+        -- unit should match our unitToken, but verify
+        if unit ~= unitToken then return end
+
+        if debugMode then
+            print("|cff00ff00JFCT NP-UC:|r unit=" .. tostring(unit) .. " action=" .. tostring(action)
+                  .. " flag=" .. tostring(flagText) .. " amount=" .. tostring(amount))
+        end
+
+        -- Refresh plate reference in case it changed
+        local curPlate = plate
+        local pOk, freshPlate = pcall(C_NamePlate.GetNamePlateForUnit, unitToken)
+        if pOk and freshPlate then curPlate = freshPlate end
+
+        HandleCombatHit(curPlate, action, flagText, amount, schoolMask)
     end
 end
 
@@ -360,24 +407,46 @@ function JFCT.Events.OnEvent(self, event, ...)
 end
 
 -- ---------------------------------------------------------------------------
--- Nameplate tracking
+-- Nameplate tracking — each plate gets its own UNIT_COMBAT listener
 -- ---------------------------------------------------------------------------
 
-local activePlates = {}
-
 function JFCT.Events.OnPlateAdded(unitToken)
-    activePlates[unitToken] = C_NamePlate.GetNamePlateForUnit(unitToken)
+    -- Don't double-register
+    if plateFrames[unitToken] then return end
+
+    local pOk, plate = pcall(C_NamePlate.GetNamePlateForUnit, unitToken)
+    if not pOk or not plate then return end
+
+    local f = GetPlateEventFrame()
+    plateFrames[unitToken] = f
+
+    -- Register UNIT_COMBAT for this specific nameplate unit
+    local regOk = pcall(function()
+        f:RegisterUnitEvent("UNIT_COMBAT", unitToken)
+    end)
+
+    if regOk then
+        f:SetScript("OnEvent", OnNameplateUnitCombat(unitToken, plate))
+    else
+        -- Registration failed, clean up
+        RecyclePlateEventFrame(f)
+        plateFrames[unitToken] = nil
+    end
 end
 
 function JFCT.Events.OnPlateRemoved(unitToken)
-    activePlates[unitToken] = nil
+    local f = plateFrames[unitToken]
+    if f then
+        RecyclePlateEventFrame(f)
+        plateFrames[unitToken] = nil
+    end
 end
 
+-- Legacy — kept for compatibility but no longer primary
 function JFCT.Events.GetTargetNameplate()
-    for unitToken, plate in pairs(activePlates) do
-        if UnitIsUnit(unitToken, "target") and plate and plate:IsShown() then
-            return plate
-        end
+    local ok, plate = pcall(C_NamePlate.GetNamePlateForUnit, "target")
+    if ok and plate and plate:IsShown() then
+        return plate
     end
     return nil
 end

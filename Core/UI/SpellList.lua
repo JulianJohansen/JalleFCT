@@ -21,7 +21,8 @@ local function BuildRows(scrollChild, existingRows)
     local rowN  = 0
     local totalH = 0
 
-    for spellId, spellName in pairs(JFCT.db.knownSpells) do
+    local spellSource = (JFCT.sv and JFCT.sv.knownSpells) or JFCT.db.knownSpells or {}
+    for spellId, spellName in pairs(spellSource) do
         rowN = rowN + 1
 
         local row = CreateFrame("Frame", nil, scrollChild)
