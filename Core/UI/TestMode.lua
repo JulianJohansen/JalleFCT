@@ -4,12 +4,12 @@
 local JFCT = JalleFCT
 
 local ticker   = nil
-local INTERVAL = 1.4  -- seconds between fake hits
+local INTERVAL = 0.8  -- seconds between fake hits
 
--- Weighted pool: more normals than crits, include dots and heals occasionally
+-- Weighted pool: mix of normals and crits so crit animations are visible
 local EVENT_POOL = {
-    "normal", "normal", "normal",
-    "crit",
+    "normal", "normal",
+    "crit", "crit",
     "dot",
     "hot",
     "miss",

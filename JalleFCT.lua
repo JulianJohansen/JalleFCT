@@ -1,6 +1,20 @@
 -- JalleFCT.lua
 -- Namespace definition and addon lifecycle
 
+-- Suppress the "has been blocked from an action" popup for this addon.
+-- BackdropTemplate and other Blizzard mixins spread taint to secure frames;
+-- the block is cosmetic and doesn't affect addon functionality.
+do
+    local origShow = StaticPopup_Show
+    StaticPopup_Show = function(which, text_arg1, ...)
+        if which == "ADDON_ACTION_FORBIDDEN" and
+           type(text_arg1) == "string" and text_arg1:find("JalleFCT", 1, true) then
+            return nil
+        end
+        return origShow(which, text_arg1, ...)
+    end
+end
+
 JalleFCT = {
     CastTracker = {},
     Display     = {},
@@ -32,13 +46,10 @@ initFrame:SetScript("OnEvent", function(self, event, ...)
         local _, class = UnitClass("player")
         JFCT.playerClass = class
         JFCT.ClassData.PreloadClass(class)
+        JFCT.Config.UpdateBlizzardFCT()
         JFCT.Events.Init()
         JFCT.Display.Init()
         JFCT.UI.Init()
-
-        if JFCT.db.enabled then
-            CombatTextSetActiveUnit("player")
-        end
 
     elseif event == "PLAYER_LOGOUT" then
         JFCT.TestMode.Stop()
@@ -48,4 +59,19 @@ end)
 SLASH_JFCT1 = "/jfct"
 SlashCmdList["JFCT"] = function()
     JFCT.UI.Toggle()
+end
+
+SLASH_JFCTDEBUG1 = "/jfctdebug"
+SlashCmdList["JFCTDEBUG"] = function()
+    JFCT.Events.ToggleDebug()
+end
+
+SLASH_JFCTTEST1 = "/jfcttest"
+SlashCmdList["JFCTTEST"] = function()
+    print("|cff00ff00JFCT:|r Firing test hit...")
+    JFCT.Display.ShowHit({
+        amount    = 12345,
+        eventType = "normal",
+        isCrit    = false,
+    })
 end

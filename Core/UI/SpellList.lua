@@ -24,42 +24,36 @@ local function BuildRows(scrollChild, existingRows)
     for spellId, spellName in pairs(JFCT.db.knownSpells) do
         rowN = rowN + 1
 
-        local row = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+        local row = CreateFrame("Frame", nil, scrollChild)
         row:SetSize(scrollChild:GetWidth(), ROW_H)
         row:SetPoint("TOPLEFT", 0, -(rowN - 1) * ROW_H)
-        row:SetBackdrop({
-            bgFile   = "Interface\\Buttons\\WHITE8X8",
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 1,
-        })
 
         -- Alternating row colour
         if rowN % 2 == 0 then
-            row:SetBackdropColor(C.bgRow[1], C.bgRow[2], C.bgRow[3], 1)
+            JFCT.UI.SetSimpleBackdrop(row,
+                C.bgRow[1], C.bgRow[2], C.bgRow[3], 1,
+                C.border[1], C.border[2], C.border[3], 0.3)
         else
-            row:SetBackdropColor(C.bg[1], C.bg[2], C.bg[3], 1)
+            JFCT.UI.SetSimpleBackdrop(row,
+                C.bg[1], C.bg[2], C.bg[3], 1,
+                C.border[1], C.border[2], C.border[3], 0.3)
         end
-        row:SetBackdropBorderColor(C.border[1], C.border[2], C.border[3], 0.3)
 
         local sid = spellId  -- capture for closures
 
         -- Helper: create a small toggle box at a given left offset
         local function MakeToggleBox(leftOffset, getValue, setValue)
-            local btn = CreateFrame("Button", nil, row, "BackdropTemplate")
+            local btn = CreateFrame("Button", nil, row)
             btn:SetSize(16, 16)
             btn:SetPoint("LEFT", leftOffset, 0)
-            btn:SetBackdrop({
-                bgFile   = "Interface\\Buttons\\WHITE8X8",
-                edgeFile = "Interface\\Buttons\\WHITE8X8",
-                edgeSize = 1,
-            })
-            btn:SetBackdropColor(C.bgDeep[1], C.bgDeep[2], C.bgDeep[3], 1)
-            btn:SetBackdropBorderColor(C.border[1], C.border[2], C.border[3])
+            JFCT.UI.SetSimpleBackdrop(btn,
+                C.bgDeep[1], C.bgDeep[2], C.bgDeep[3], 1,
+                C.border[1], C.border[2], C.border[3], C.border[4])
 
             local mark = btn:CreateFontString(nil, "OVERLAY")
             mark:SetFont("Fonts\\FRIZQT__.TTF", 11, "NONE")
             mark:SetTextColor(C.accent[1], C.accent[2], C.accent[3])
-            mark:SetText("x")
+            mark:SetText("\226\156\147")
             mark:SetAllPoints()
             mark:SetJustifyH("CENTER")
             mark:SetJustifyV("MIDDLE")
@@ -67,9 +61,9 @@ local function BuildRows(scrollChild, existingRows)
             local function Refresh(v)
                 mark:SetAlpha(v and 1 or 0)
                 if v then
-                    btn:SetBackdropBorderColor(C.accent[1], C.accent[2], C.accent[3])
+                    JFCT.UI.SetBorderColor(btn, C.accent[1], C.accent[2], C.accent[3])
                 else
-                    btn:SetBackdropBorderColor(C.border[1], C.border[2], C.border[3])
+                    JFCT.UI.SetBorderColor(btn, C.border[1], C.border[2], C.border[3])
                 end
             end
 
@@ -84,12 +78,12 @@ local function BuildRows(scrollChild, existingRows)
         end
 
         -- Show toggle
-        MakeToggleBox(8,
+        MakeToggleBox(10,
             function() return JFCT.Config.GetSpellFilter(sid) end,
             function(v) JFCT.Config.SetSpellFilter(sid, v) end)
 
         -- Merge toggle (only meaningful when global merge is on)
-        local mergeBtn = MakeToggleBox(32,
+        local mergeBtn = MakeToggleBox(50,
             function() return JFCT.Config.GetSpellMerge(sid) end,
             function(v) JFCT.Config.SetSpellMerge(sid, v) end)
 
@@ -103,8 +97,8 @@ local function BuildRows(scrollChild, existingRows)
         nameFs:SetFont("Fonts\\FRIZQT__.TTF", 12, "NONE")
         nameFs:SetTextColor(C.text[1], C.text[2], C.text[3])
         nameFs:SetText(spellName)
-        nameFs:SetPoint("LEFT", 56, 0)
-        nameFs:SetWidth(148)
+        nameFs:SetPoint("LEFT", 80, 0)
+        nameFs:SetWidth(130)
         nameFs:SetJustifyH("LEFT")
         nameFs:SetWordWrap(false)
 
@@ -159,19 +153,19 @@ function JFCT.UI.BuildSpellsTab(parent)
     colShow:SetFont("Fonts\\FRIZQT__.TTF", 10, "NONE")
     colShow:SetTextColor(C.textDim[1], C.textDim[2], C.textDim[3])
     colShow:SetText("Show")
-    colShow:SetPoint("TOPLEFT", 22, -36)
+    colShow:SetPoint("TOPLEFT", 24, -36)
 
     local colMerge = parent:CreateFontString(nil, "OVERLAY")
     colMerge:SetFont("Fonts\\FRIZQT__.TTF", 10, "NONE")
     colMerge:SetTextColor(C.textDim[1], C.textDim[2], C.textDim[3])
     colMerge:SetText("Merge")
-    colMerge:SetPoint("TOPLEFT", 46, -36)
+    colMerge:SetPoint("TOPLEFT", 62, -36)
 
     local colName = parent:CreateFontString(nil, "OVERLAY")
     colName:SetFont("Fonts\\FRIZQT__.TTF", 10, "NONE")
     colName:SetTextColor(C.textDim[1], C.textDim[2], C.textDim[3])
     colName:SetText("Ability")
-    colName:SetPoint("TOPLEFT", 76, -36)
+    colName:SetPoint("TOPLEFT", 100, -36)
 
     local colSize = parent:CreateFontString(nil, "OVERLAY")
     colSize:SetFont("Fonts\\FRIZQT__.TTF", 10, "NONE")

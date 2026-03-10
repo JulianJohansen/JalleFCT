@@ -1,135 +1,369 @@
 -- Core/Events.lua
--- Event registration and routing to CastTracker / Display
+-- Event registration and routing to Display
+-- Primary source: UNIT_COMBAT (like MidnightBattleText)
+-- Secondary: CLEU for spellId/crit data enrichment
 
 local JFCT = JalleFCT
 
 local eventFrame = CreateFrame("Frame")
 
--- COMBAT_TEXT_UPDATE sub-types we care about
-local DISPLAY_TYPES = {
-    DAMAGE              = "normal",
-    DAMAGE_CRIT         = "crit",
-    SPELL_DAMAGE        = "normal",
-    SPELL_DAMAGE_CRIT   = "crit",
-    PERIODIC_DAMAGE     = "dot",
-    HEAL                = "heal",
-    HEAL_CRIT           = "heal",
-    PERIODIC_HEAL       = "hot",
-    PERIODIC_HEAL_CRIT  = "hot",
-    MISS                = "miss",
-    DODGE               = "miss",
-    PARRY               = "miss",
-    IMMUNE              = "miss",
-    ABSORB              = "miss",
+-- ---------------------------------------------------------------------------
+-- UNIT_COMBAT miss types
+-- ---------------------------------------------------------------------------
+
+local UC_MISS = {
+    BLOCK = true, DODGE = true, PARRY = true, MISS = true,
+    IMMUNE = true, DEFLECT = true, REFLECT = true,
+    RESIST = true, ABSORB = true, EVADE = true,
 }
 
+-- ---------------------------------------------------------------------------
+-- CLEU sub-events (for enrichment / marking)
+-- ---------------------------------------------------------------------------
+
+local CLEU_DAMAGE = {
+    SWING_DAMAGE = true, RANGE_DAMAGE = true, SPELL_DAMAGE = true,
+    SPELL_PERIODIC_DAMAGE = true, DAMAGE_SHIELD = true,
+}
+local CLEU_HEAL = {
+    SPELL_HEAL = true, SPELL_PERIODIC_HEAL = true,
+}
+
+-- ---------------------------------------------------------------------------
+-- Spell tracking: UNIT_COMBAT doesn't provide spellId, so we capture
+-- the last spell cast via UNIT_SPELLCAST_SUCCEEDED
+-- ---------------------------------------------------------------------------
+
+local lastPlayerSpellId = nil
+local lastPlayerSpellTime = 0
+local SPELL_TRACK_WINDOW = 1.5
+
+local spellTrackFrame = CreateFrame("Frame")
+pcall(function()
+    spellTrackFrame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pet")
+end)
+spellTrackFrame:SetScript("OnEvent", function(self, event, unit, castGUID, spellId)
+    if event == "UNIT_SPELLCAST_SUCCEEDED" and unit == "player" then
+        lastPlayerSpellId = spellId
+        lastPlayerSpellTime = GetTime()
+
+        -- Register spell name for spell list
+        if spellId then
+            local nameOk, spellName = pcall(C_Spell.GetSpellName, spellId)
+            if nameOk and spellName then
+                JFCT.Config.RegisterSpell(spellId, spellName)
+            end
+        end
+    end
+end)
+
+local function GetLastPlayerSpellId()
+    if lastPlayerSpellId and (GetTime() - lastPlayerSpellTime) <= SPELL_TRACK_WINDOW then
+        return lastPlayerSpellId
+    end
+    return nil
+end
+
+-- ---------------------------------------------------------------------------
+-- CLEU mark system: CLEU fires before UNIT_COMBAT on the same frame.
+-- We mark player-source events with spellId/isCrit so UNIT_COMBAT can
+-- use that data AND filter out other players' damage on our target.
+-- ---------------------------------------------------------------------------
+
+local recentCLEU = {}        -- [amount..category] = { time, spellId, isCrit, isPeriodic }
+local DEDUP_WINDOW = 0.15
+local cleuLastMark = 0
+local CLEU_ACTIVE_WINDOW = 5
+
+local function MarkCLEUEvent(amount, category, spellId, isCrit, isPeriodic)
+    local now = GetTime()
+    cleuLastMark = now
+    local keyOk, key = pcall(function() return tostring(amount) .. category end)
+    if not keyOk then return end
+    recentCLEU[key] = { time = now, spellId = spellId, isCrit = isCrit, isPeriodic = isPeriodic }
+end
+
+-- Returns: marked, spellId, isCrit, isPeriodic.  Consumes the mark.
+local function ConsumeCLEUMark(amount, category)
+    local keyOk, key = pcall(function() return tostring(amount) .. category end)
+    if not keyOk then return false, nil, false, false end
+    local mark = recentCLEU[key]
+    if mark and (GetTime() - mark.time) <= DEDUP_WINDOW then
+        recentCLEU[key] = nil
+        return true, mark.spellId, mark.isCrit, mark.isPeriodic
+    end
+    return false, nil, false, false
+end
+
+-- ---------------------------------------------------------------------------
+-- Debug
+-- ---------------------------------------------------------------------------
+
+local debugMode = false
+function JFCT.Events.ToggleDebug()
+    debugMode = not debugMode
+    print("|cff00ff00JalleFCT debug:|r " .. (debugMode and "ON" or "OFF"))
+end
+
+-- ---------------------------------------------------------------------------
+-- UNIT_COMBAT handler (primary display source)
+-- Args: unitTarget, action, flagText, amount, schoolMask
+-- ---------------------------------------------------------------------------
+
+local function OnUnitCombat(unit, action, flagText, amount, schoolMask)
+    if not JFCT.db or not JFCT.db.enabled then return end
+
+    if debugMode then
+        print("|cff00ff00JFCT UC:|r unit=" .. tostring(unit) .. " action=" .. tostring(action)
+              .. " flag=" .. tostring(flagText) .. " amount=" .. tostring(amount))
+    end
+
+    local isCrit = (flagText == "CRITICAL")
+
+    -- We only care about outgoing damage/heals on our target
+    if unit == "target" then
+        if action == "WOUND" then
+            if not JFCT.db.showOutgoingDamage and JFCT.db.showOutgoingDamage ~= nil then return end
+
+            -- Check CLEU mark: only show if this was OUR damage
+            local marked, cleuSpellId, cleuCrit, cleuPeriodic = ConsumeCLEUMark(amount, "damage")
+
+            if marked then
+                -- CLEU confirmed this is our hit
+                local spellId = cleuSpellId
+                isCrit = cleuCrit or isCrit
+
+                local eventType
+                if cleuPeriodic then
+                    eventType = "dot"
+                elseif isCrit then
+                    eventType = "crit"
+                else
+                    eventType = "normal"
+                end
+
+                -- Filtering
+                if eventType == "dot" and not JFCT.db.showDots then return end
+                if spellId and not JFCT.Config.GetSpellFilter(spellId) then return end
+
+                JFCT.Display.ShowHit({
+                    amount    = amount,
+                    spellId   = spellId,
+                    eventType = eventType,
+                    isCrit    = isCrit,
+
+                })
+            else
+                -- CLEU unavailable or didn't mark this hit.
+                -- Use spell tracking to determine if this is our direct hit or a dot tick.
+                local spellId = GetLastPlayerSpellId()
+                local timeSinceCast = lastPlayerSpellTime > 0 and (GetTime() - lastPlayerSpellTime) or 999
+
+                -- If a spell was cast very recently (< 0.4s), this is likely a direct hit
+                -- If no recent cast, this is likely a dot tick or other player's damage
+                local isDotLikely = (timeSinceCast > 0.4)
+
+                if isDotLikely then
+                    -- Treat as a dot tick
+                    if not JFCT.db.showDots then return end
+                    JFCT.Display.ShowHit({
+                        amount    = amount,
+                        spellId   = spellId,
+                        eventType = "dot",
+                        isCrit    = isCrit,
+    
+                    })
+                else
+                    -- Direct hit
+                    local eventType = isCrit and "crit" or "normal"
+                    JFCT.Display.ShowHit({
+                        amount    = amount,
+                        spellId   = spellId,
+                        eventType = eventType,
+                        isCrit    = isCrit,
+    
+                    })
+                end
+            end
+
+        elseif action == "HEAL" then
+            if not JFCT.db.showHeals then return end
+
+            local marked, cleuSpellId, cleuCrit, cleuPeriodic = ConsumeCLEUMark(amount, "heal")
+            if marked then
+                local eventType = cleuPeriodic and "hot" or "heal"
+                if eventType == "hot" and not JFCT.db.showHots then return end
+
+                JFCT.Display.ShowHit({
+                    amount    = amount,
+                    spellId   = cleuSpellId,
+                    eventType = eventType,
+                    isCrit    = cleuCrit or isCrit,
+
+                })
+            else
+                local spellId = GetLastPlayerSpellId()
+                local timeSinceCast = lastPlayerSpellTime > 0 and (GetTime() - lastPlayerSpellTime) or 999
+                local isHotLikely = (timeSinceCast > 0.4)
+
+                if isHotLikely then
+                    if not JFCT.db.showHots then return end
+                    JFCT.Display.ShowHit({
+                        amount    = amount,
+                        spellId   = spellId,
+                        eventType = "hot",
+                        isCrit    = isCrit,
+    
+                    })
+                else
+                    JFCT.Display.ShowHit({
+                        amount    = amount,
+                        spellId   = spellId,
+                        eventType = "heal",
+                        isCrit    = isCrit,
+    
+                    })
+                end
+            end
+
+        elseif UC_MISS[action] then
+            JFCT.Display.ShowHit({
+                amount    = action,
+                eventType = "miss",
+                isCrit    = false,
+            })
+        end
+    end
+end
+
+-- ---------------------------------------------------------------------------
+-- CLEU handler (secondary — marks events for UNIT_COMBAT dedup/enrichment)
+-- ---------------------------------------------------------------------------
+
+local function TryParseCLEU()
+    if not JFCT.db or not JFCT.db.enabled then return end
+
+    local ok, err = pcall(function()
+        local timestamp, subEvent, hideCaster,
+              sourceGUID, sourceName, sourceFlags, sourceRaidFlags,
+              destGUID, destName, destFlags, destRaidFlags = CombatLogGetCurrentEventInfo()
+
+        local MINE = COMBATLOG_OBJECT_AFFILIATION_MINE or 0x1
+        local isMySource = bit.band(sourceFlags, MINE) ~= 0
+        if not isMySource then return end
+
+        if CLEU_DAMAGE[subEvent] then
+            local amount, spellId, critical
+            if subEvent == "SWING_DAMAGE" then
+                amount   = select(12, CombatLogGetCurrentEventInfo())
+                critical = select(18, CombatLogGetCurrentEventInfo())
+            else
+                spellId  = select(12, CombatLogGetCurrentEventInfo())
+                amount   = select(15, CombatLogGetCurrentEventInfo())
+                critical = select(21, CombatLogGetCurrentEventInfo())
+            end
+
+            local isCrit = false
+            if critical ~= nil then
+                local cOk, cVal = pcall(function() return critical == true end)
+                isCrit = cOk and cVal or false
+            end
+
+            local isPeriodic = (subEvent == "SPELL_PERIODIC_DAMAGE")
+
+            -- Register spell
+            if spellId then
+                local nameOk, spellName = pcall(function()
+                    return select(13, CombatLogGetCurrentEventInfo())
+                end)
+                if nameOk and spellName then
+                    JFCT.Config.RegisterSpell(spellId, spellName)
+                end
+            end
+
+            MarkCLEUEvent(amount, "damage", spellId, isCrit, isPeriodic)
+            return
+        end
+
+        if CLEU_HEAL[subEvent] then
+            local TYPE_PET = COMBATLOG_OBJECT_TYPE_PET or 0x1000
+            local isPet = bit.band(sourceFlags, TYPE_PET) ~= 0
+            if isPet then return end
+
+            local spellId  = select(12, CombatLogGetCurrentEventInfo())
+            local amount   = select(15, CombatLogGetCurrentEventInfo())
+            local critical = select(21, CombatLogGetCurrentEventInfo())
+
+            local isCrit = false
+            if critical ~= nil then
+                local cOk, cVal = pcall(function() return critical == true end)
+                isCrit = cOk and cVal or false
+            end
+
+            local isPeriodic = (subEvent == "SPELL_PERIODIC_HEAL")
+            MarkCLEUEvent(amount, "heal", spellId, isCrit, isPeriodic)
+            return
+        end
+    end)
+
+    if not ok and err and debugMode then
+        print("|cffff4444JFCT CLEU error:|r " .. tostring(err))
+    end
+end
+
+-- ---------------------------------------------------------------------------
+-- Init
+-- ---------------------------------------------------------------------------
+
 function JFCT.Events.Init()
-    -- Primary display source: secret-safe, works in all content
-    eventFrame:RegisterEvent("COMBAT_TEXT_UPDATE")
+    -- Primary: UNIT_COMBAT for player + target
+    local ucOk = pcall(function()
+        eventFrame:RegisterUnitEvent("UNIT_COMBAT", "player", "target")
+    end)
+    if not ucOk then
+        pcall(function() eventFrame:RegisterEvent("UNIT_COMBAT") end)
+    end
 
-    -- Used for spell ID/name tracking (populates the spell filter list)
-    -- Also provides correlation context for per-spell config
-    eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+    -- Secondary: CLEU for spell enrichment (register outside combat lockdown)
+    if not InCombatLockdown() then
+        pcall(function() eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED") end)
+    end
 
-    -- Used for multi-hit grouping (dual-wield, cleave, etc.)
-    eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pet")
-    eventFrame:RegisterUnitEvent("UNIT_SPELLCAST_START",     "player", "pet")
+    -- Re-register UNIT_COMBAT on target change
+    eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
 
-    -- Nameplate tracking for anchor mode
+    -- Nameplate tracking
     eventFrame:RegisterEvent("NAME_PLATE_UNIT_ADDED")
     eventFrame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
 
-    -- Stop test mode if the player enters real combat
+    -- Stop test mode on combat
     eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    -- Retry CLEU after combat ends
+    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
     eventFrame:SetScript("OnEvent", JFCT.Events.OnEvent)
 end
 
 function JFCT.Events.OnEvent(self, event, ...)
-    if     event == "COMBAT_TEXT_UPDATE"           then JFCT.Events.OnCombatText(...)
-    elseif event == "COMBAT_LOG_EVENT_UNFILTERED"  then JFCT.Events.OnCLEU()
-    elseif event == "UNIT_SPELLCAST_START"         then JFCT.Events.OnSpellcastStart(...)
-    elseif event == "UNIT_SPELLCAST_SUCCEEDED"     then JFCT.Events.OnSpellcastSucceeded(...)
-    elseif event == "NAME_PLATE_UNIT_ADDED"        then JFCT.Events.OnPlateAdded(...)
-    elseif event == "NAME_PLATE_UNIT_REMOVED"      then JFCT.Events.OnPlateRemoved(...)
-    elseif event == "PLAYER_REGEN_DISABLED"        then JFCT.TestMode.Stop()
+    if     event == "UNIT_COMBAT"                   then OnUnitCombat(...)
+    elseif event == "COMBAT_LOG_EVENT_UNFILTERED"   then TryParseCLEU()
+    elseif event == "PLAYER_TARGET_CHANGED"         then
+        pcall(function()
+            eventFrame:RegisterUnitEvent("UNIT_COMBAT", "player", "target")
+        end)
+    elseif event == "NAME_PLATE_UNIT_ADDED"         then JFCT.Events.OnPlateAdded(...)
+    elseif event == "NAME_PLATE_UNIT_REMOVED"       then JFCT.Events.OnPlateRemoved(...)
+    elseif event == "PLAYER_REGEN_DISABLED"         then JFCT.TestMode.Stop()
+    elseif event == "PLAYER_REGEN_ENABLED"          then
+        pcall(function() eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED") end)
     end
-end
-
--- ---------------------------------------------------------------------------
--- COMBAT_TEXT_UPDATE  (primary display path, secret-safe)
--- ---------------------------------------------------------------------------
-
-function JFCT.Events.OnCombatText(combatTextType)
-    if not JFCT.db.enabled then return end
-
-    local eventType = DISPLAY_TYPES[combatTextType]
-    if not eventType then return end
-
-    local amount = GetCurrentCombatTextEventInfo()
-    if not amount then return end
-
-    local isCrit = combatTextType:find("CRIT") ~= nil
-
-    JFCT.CastTracker.OnCombatTextEvent(amount, eventType, isCrit)
-end
-
--- ---------------------------------------------------------------------------
--- COMBAT_LOG_EVENT_UNFILTERED  (spell ID tracking + merge correlation)
--- ---------------------------------------------------------------------------
-
-function JFCT.Events.OnCLEU()
-    local _, subevent, _,
-          sourceGUID, _, _, _,
-          _, _, _, _,
-          spellId, spellName = CombatLogGetCurrentEventInfo()
-
-    -- Only care about the player and their pet as the source
-    local playerGUID = UnitGUID("player")
-    local petGUID    = UnitGUID("pet")
-    if sourceGUID ~= playerGUID and sourceGUID ~= petGUID then return end
-
-    if subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE" then
-        if spellId and spellName then
-            JFCT.Config.RegisterSpell(spellId, spellName)
-            JFCT.CastTracker.OnCLEUDamage(sourceGUID, spellId, spellName,
-                subevent == "SPELL_PERIODIC_DAMAGE")
-        end
-
-    elseif subevent == "SWING_DAMAGE" then
-        JFCT.Config.RegisterSpell(0, "Auto Attack")
-        JFCT.CastTracker.OnCLEUDamage(sourceGUID, 0, "Auto Attack", false)
-    end
-end
-
--- ---------------------------------------------------------------------------
--- UNIT_SPELLCAST_START  (capture castBarID while cast is active)
--- ---------------------------------------------------------------------------
-
--- castBarID is available from UnitCastingInfo while UNIT_SPELLCAST_START fires
--- We cache it keyed by castGUID so we can retrieve it at SUCCEEDED
-local pendingCastBarIDs = {}  -- [castGUID] = castBarID
-
-function JFCT.Events.OnSpellcastStart(unitToken, castGUID, spellId)
-    local _, _, _, _, _, _, _, _, _, castBarID = UnitCastingInfo(unitToken)
-    if castBarID then
-        pendingCastBarIDs[castGUID] = castBarID
-    end
-end
-
-function JFCT.Events.OnSpellcastSucceeded(unitToken, castGUID, spellId)
-    local castBarID = pendingCastBarIDs[castGUID]
-    pendingCastBarIDs[castGUID] = nil  -- consume
-
-    local spellName = C_Spell.GetSpellName(spellId)
-    JFCT.CastTracker.OnCastSucceeded(unitToken, spellId, spellName or "", castBarID)
 end
 
 -- ---------------------------------------------------------------------------
 -- Nameplate tracking
 -- ---------------------------------------------------------------------------
 
-local activePlates = {}  -- [unitToken] = nameplateFrame
+local activePlates = {}
 
 function JFCT.Events.OnPlateAdded(unitToken)
     activePlates[unitToken] = C_NamePlate.GetNamePlateForUnit(unitToken)
@@ -139,7 +373,6 @@ function JFCT.Events.OnPlateRemoved(unitToken)
     activePlates[unitToken] = nil
 end
 
--- Returns the nameplate frame for the current target, or nil
 function JFCT.Events.GetTargetNameplate()
     for unitToken, plate in pairs(activePlates) do
         if UnitIsUnit(unitToken, "target") and plate and plate:IsShown() then

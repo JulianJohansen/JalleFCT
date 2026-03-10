@@ -3,15 +3,24 @@
 
 local JFCT = JalleFCT
 
-local BASE_FONT = "Fonts\\FRIZQT__.TTF"
-local BASE_SIZE = 22
+-- Font defaults (overridden by db settings)
+local DEFAULT_FONT = "Fonts\\FRIZQT__.TTF"
+local DEFAULT_SIZE = 22
+
+local pool
+local activeCritFrame = nil    -- only one crit visible at a time
+local activeNormalFrame = nil  -- only one normal hit visible at a time
 
 -- Reset a pooled frame to a clean state
 local function ResetFrame(_, frame)
     frame:Hide()
     frame:ClearAllPoints()
+    frame:SetParent(UIParent)
     if frame.animGroup then
         frame.animGroup:Stop()
+    end
+    if frame.critGroup then
+        frame.critGroup:Stop()
     end
     if frame.text then
         frame.text:SetText("")
@@ -19,9 +28,14 @@ local function ResetFrame(_, frame)
     end
     frame:SetScale(1)
     frame:SetAlpha(1)
+    -- Clear crit tracking if this was the active crit
+    if activeCritFrame == frame then
+        activeCritFrame = nil
+    end
+    if activeNormalFrame == frame then
+        activeNormalFrame = nil
+    end
 end
-
-local pool
 
 function JFCT.Display.Init()
     pool = CreateFramePool("Frame", UIParent, nil, ResetFrame)
@@ -50,7 +64,7 @@ local function GetAnchor()
     if JFCT.db.anchorMode == "nameplate" then
         local plate = JFCT.Events.GetTargetNameplate()
         if plate then
-            return plate, "BOTTOM", JFCT.db.nameplateOffsetX, JFCT.db.nameplateOffsetY
+            return plate, "TOP", JFCT.db.nameplateOffsetX, JFCT.db.nameplateOffsetY
         end
     end
     -- Screen anchor (or nameplate fallback)
@@ -61,9 +75,6 @@ end
 -- Sum helper (secret-safe)
 -- ---------------------------------------------------------------------------
 
--- In restricted encounters amounts may be secret values.
--- We can pass secrets directly to FontString:SetText(), but we cannot do
--- arithmetic on them.  If summing fails, fall back to the last hit value.
 local function SumAmounts(amounts)
     local ok, result = pcall(function()
         local total = 0
@@ -77,14 +88,6 @@ end
 
 -- ---------------------------------------------------------------------------
 -- ShowHit  (main entry point)
--- hitData = {
---   amount    = number | table-of-numbers  (may be secret)
---   spellId   = number | nil
---   spellName = string | nil
---   eventType = "normal"|"crit"|"dot"|"hot"|"heal"|"miss"
---   isCrit    = bool
---   merged    = bool
--- }
 -- ---------------------------------------------------------------------------
 
 function JFCT.Display.ShowHit(hitData)
@@ -104,9 +107,22 @@ function JFCT.Display.ShowHit(hitData)
     end
 
     -- Per-spell scale
-    local scale    = spellId and JFCT.Config.GetSpellSize(spellId) or 1.0
-    local fontSize = BASE_SIZE * scale
-    if isCrit then fontSize = fontSize * 1.25 end
+    local spellScale = spellId and JFCT.Config.GetSpellSize(spellId) or 1.0
+    local baseSize   = JFCT.db.fontSize or DEFAULT_SIZE
+
+    -- Per-type scale multiplier
+    local typeScaleKey = eventType .. "Scale"
+    local typeScale    = JFCT.db[typeScaleKey] or 1.0
+    local fontSize     = baseSize * spellScale * typeScale
+
+    -- Crits replace the previous crit; normal hits replace the previous normal hit
+    if isCrit and activeCritFrame then
+        pool:Release(activeCritFrame)
+        activeCritFrame = nil
+    elseif not isCrit and eventType == "normal" and activeNormalFrame then
+        pool:Release(activeNormalFrame)
+        activeNormalFrame = nil
+    end
 
     -- Acquire and configure frame
     local frame = pool:Acquire()
@@ -115,7 +131,19 @@ function JFCT.Display.ShowHit(hitData)
     frame:SetFrameLevel(100)
 
     local anchor, point, ox, oy = GetAnchor()
-    frame:SetPoint("CENTER", anchor, point, ox, oy)
+
+    -- Small random spawn jitter so simultaneous hits don't start at the exact same pixel
+    local jitterX = math.random(-10, 10)
+    local jitterY = math.random(-6, 6)
+
+    -- For nameplate mode: re-parent to UIParent so the frame isn't clipped
+    -- by the nameplate's bounds, and anchor BOTTOM of our frame to TOP of plate
+    if anchor ~= UIParent then
+        frame:SetParent(UIParent)
+        frame:SetPoint("BOTTOM", anchor, point, ox + jitterX, oy + jitterY)
+    else
+        frame:SetPoint("CENTER", anchor, point, ox + jitterX, oy + jitterY)
+    end
 
     -- Font string (create once per pooled frame)
     if not frame.text then
@@ -125,12 +153,40 @@ function JFCT.Display.ShowHit(hitData)
         frame.text:SetJustifyV("MIDDLE")
     end
 
-    frame.text:SetFont(BASE_FONT, fontSize, "OUTLINE")
+    local fontPath  = JFCT.db.font or DEFAULT_FONT
+    local fontFlags = JFCT.db.fontFlags or "OUTLINE"
+    if fontFlags == "NONE" then fontFlags = "" end
+
+    -- Crits: render font at 2x and set frame scale to 0.5 so the resting
+    -- visual size equals fontSize.  The Scale animation zooms from 1.5 DOWN
+    -- to 1.0 — always downscaling the 2x bitmap, so text stays crisp.
+    if isCrit then
+        frame.text:SetFont(fontPath, fontSize * 2, fontFlags)
+        frame:SetScale(0.5)
+    else
+        frame.text:SetFont(fontPath, fontSize, fontFlags)
+        frame:SetScale(1)
+    end
+
+    if JFCT.db.fontShadow then
+        frame.text:SetShadowOffset(JFCT.db.fontShadowX or 1, JFCT.db.fontShadowY or -1)
+        frame.text:SetShadowColor(0, 0, 0, 0.8)
+    else
+        frame.text:SetShadowOffset(0, 0)
+    end
+
     frame.text:SetTextColor(GetColor(eventType))
-    frame.text:SetText(displayAmount)  -- SetText accepts secret values directly
+    frame.text:SetText(displayAmount)
     frame.text:SetAlpha(1)
 
     frame:Show()
+
+    -- Track active crit / normal frame
+    if isCrit then
+        activeCritFrame = frame
+    elseif eventType == "normal" then
+        activeNormalFrame = frame
+    end
 
     -- Dispatch animation
     if JFCT.db.animStyle == "classic" then
