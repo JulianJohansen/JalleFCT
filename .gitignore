@@ -1,0 +1,9 @@
+# WoW addon dev
+*.bak
+
+# Lua compiled
+*.luac
+
+# OS
+.DS_Store
+Thumbs.db
